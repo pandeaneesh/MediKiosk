@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediKiosk — Medical Document Intelligence (MDI)</title>
+  <meta name="description" content="Redis-driven clinical OCR & medical document intelligence pipeline with source-grounded explainability, clinical timeline, and doctor verification.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="theme-dark">
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-logo-badge">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+          <path d="M12 5v14"/>
+          <path d="M5 12h14"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">MediKiosk <span class="brand-accent">MDI</span></h1>
+        <p class="brand-subtitle">Medical Document Intelligence & Explainable Clinical OCR</p>
+      </div>
+    </div>
+
+    <!-- Redis Engine & Architecture Pill -->
+    <div class="header-status-group">
+      <div class="status-pill redis-pill" id="redisLiveBadge">
+        <span class="status-dot pulse-green"></span>
+        <span class="status-text">Redis Pipeline: <strong id="redisModeText">Active</strong></span>
+      </div>
+      <div class="status-pill model-pill" id="btnOpenAISettings" style="cursor: pointer;" title="Configure Multimodal Vision AI Key">
+        <span class="badge-icon">🤖</span>
+        <span id="aiEngineBadgeText">Handwriting AI Engine</span>
+        <span class="badge-setting-hint">⚙️</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Demo Presets Bar -->
+  <section class="demo-bar">
+    <div class="demo-bar-inner">
+      <span class="demo-label">⚡ 1-Click Clinical Presets:</span>
+      <button class="preset-btn btn-highlight" data-sample="sample_handwritten">
+        <span class="preset-icon">✍️</span>
+        <span class="preset-text">Doctor Handwritten Prescription Slip</span>
+      </button>
+      <button class="preset-btn" data-sample="sample_prescription">
+        <span class="preset-icon">💊</span>
+        <span class="preset-text">Rx: Diabetes & Hypertension (OPD)</span>
+      </button>
+      <button class="preset-btn" data-sample="sample_lab_report">
+        <span class="preset-icon">🧪</span>
+        <span class="preset-text">Lab Report: HbA1c & Lipid Panel</span>
+      </button>
+      <button class="preset-btn" data-sample="sample_discharge_summary">
+        <span class="preset-icon">🏥</span>
+        <span class="preset-text">Discharge Summary: Hyperglycemia</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Main Application Container -->
+  <main class="main-layout">
+    <!-- Upload & Pipeline Progress Section -->
+    <section class="upload-control-card">
+      <div class="upload-flex-container">
+        <!-- Drag & Drop Zone -->
+        <div class="dropzone" id="dropZone">
+          <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.webp,.bmp,.pdf" class="file-input-hidden">
+          <div class="dropzone-content">
+            <div class="upload-icon-circle">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <p class="dropzone-primary-text">Upload Prescription / Lab Report</p>
+            <p class="dropzone-secondary-text">Drag & drop JPG, PNG, or PDF • Or <span class="browse-link">browse files</span></p>
+          </div>
+        </div>
+
+        <!-- Live Redis Queue Progress Panel -->
+        <div class="pipeline-progress-box" id="pipelineProgressBox">
+          <div class="progress-header">
+            <div class="progress-title-row">
+              <span class="redis-tag">REDIS QUEUE TASK</span>
+              <span class="doc-id-badge" id="currentDocId">DOC-READY</span>
+            </div>
+            <span class="progress-percentage" id="progressPercentage">0%</span>
+          </div>
+
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+          </div>
+
+          <!-- 5-Step Pipeline Breadcrumb -->
+          <div class="pipeline-steps">
+            <div class="step-item" id="step-uploaded">
+              <span class="step-num">1</span>
+              <span class="step-label">Upload</span>
+            </div>
+            <div class="step-item" id="step-preprocessing">
+              <span class="step-num">2</span>
+              <span class="step-label">OpenCV</span>
+            </div>
+            <div class="step-item" id="step-ocr_processing">
+              <span class="step-num">3</span>
+              <span class="step-label">PaddleOCR</span>
+            </div>
+            <div class="step-item" id="step-extracting_entities">
+              <span class="step-num">4</span>
+              <span class="step-label">Medical AI</span>
+            </div>
+            <div class="step-item" id="step-generating_summary">
+              <span class="step-num">5</span>
+              <span class="step-label">Summary</span>
+            </div>
+          </div>
+
+          <p class="pipeline-status-caption" id="pipelineCaption">Ready to ingest document into Redis pipeline.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Split Screen Explainability Viewer -->
+    <section class="split-view-container" id="splitViewContainer">
+      <!-- Left Pane: Interactive Document Image + Bounding Box Canvas -->
+      <div class="document-viewer-pane">
+        <div class="pane-header">
+          <div class="pane-title-group">
+            <span class="pane-icon">📄</span>
+            <span class="pane-title">Original Medical Document</span>
+            <span class="doc-classification-pill" id="docTypePill">Prescription (96%)</span>
+          </div>
+          <div class="viewer-actions">
+            <button class="btn-toggle-boxes" id="btnToggleBoxes" title="Toggle OCR Bounding Boxes">
+              <span class="icon">🎯</span> Toggle Bounding Boxes
+            </button>
+            <button class="btn-reset-zoom" id="btnResetZoom" title="Reset Zoom">
+              <span class="icon">🔍</span> Reset
+            </button>
+          </div>
+        </div>
+
+        <div class="document-canvas-wrapper" id="canvasWrapper">
+          <div class="document-canvas-inner" id="canvasInner">
+            <img id="documentImage" class="document-image" src="" alt="Medical Document View">
+            <div id="bboxOverlay" class="bbox-overlay"></div>
+          </div>
+        </div>
+
+        <div class="viewer-legend">
+          <span class="legend-item"><span class="legend-dot dot-med"></span> Medication</span>
+          <span class="legend-item"><span class="legend-dot dot-lab"></span> Investigation</span>
+          <span class="legend-item"><span class="legend-dot dot-vital"></span> Vital</span>
+          <span class="legend-item"><span class="legend-dot dot-warning"></span> Low Confidence (&lt;80%)</span>
+        </div>
+      </div>
+
+      <!-- Right Pane: Extracted Medical Intelligence & Doctor Verification -->
+      <div class="intelligence-pane">
+        <!-- Patient & Clinical Impression Header -->
+        <div class="patient-card-header" id="patientCardHeader" style="display: none;">
+          <div class="patient-main-row">
+            <div class="patient-avatar">👤</div>
+            <div class="patient-meta">
+              <h3 class="patient-name" id="patientNameText">Patient Name</h3>
+              <p class="patient-sub" id="patientSubText">Age: -- | Gender: -- | Date: --</p>
+            </div>
+            <div class="diagnosis-badge-container" id="diagnosisBadgeContainer">
+              <span class="diagnosis-tag" id="diagnosisTag">Impression: Hypoglycemia</span>
+            </div>
+          </div>
+          <div class="facility-bar" id="facilityBar">
+            <span class="facility-icon">🏥</span>
+            <span class="facility-text" id="facilityText">Adichunchanagiri Institute of Medical Sciences</span>
+          </div>
+        </div>
+
+        <!-- Tabs Header -->
+        <div class="intel-tabs">
+          <button class="tab-btn active" data-tab="tab-meds">
+            <span class="tab-icon">💊</span> Prescriptions & Meds (<span id="countMeds">0</span>)
+          </button>
+          <button class="tab-btn" data-tab="tab-labs">
+            <span class="tab-icon">🧪</span> Labs / Investigations (<span id="countLabs">0</span>)
+          </button>
+          <button class="tab-btn" data-tab="tab-vitals">
+            <span class="tab-icon">🩺</span> Vitals (<span id="countVitals">0</span>)
+          </button>
+          <button class="tab-btn" data-tab="tab-timeline">
+            <span class="tab-icon">📅</span> Timeline
+          </button>
+          <button class="tab-btn" data-tab="tab-summary">
+            <span class="tab-icon">📋</span> Physician Summary
+          </button>
+        </div>
+
+        <!-- Doctor Verification Alert Banner -->
+        <div class="verification-alert-banner" id="verificationAlert" style="display: none;">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-content">
+            <strong>Doctor Verification Safeguard Active</strong>
+            <p><span id="unverifiedCountText">0</span> low-confidence handwritten or faint items flagged. Manual confirmation required.</p>
+          </div>
+        </div>
+
+        <!-- Tab 1: Medications -->
+        <div class="tab-content active" id="tab-meds">
+          <div class="entities-grid" id="medicationsList">
+            <!-- Dynamic Medication Cards -->
+          </div>
+        </div>
+
+        <!-- Tab 2: Investigations -->
+        <div class="tab-content" id="tab-labs">
+          <div class="entities-grid" id="investigationsList">
+            <!-- Dynamic Lab Cards -->
+          </div>
+        </div>
+
+        <!-- Tab 3: Vitals -->
+        <div class="tab-content" id="tab-vitals">
+          <div class="entities-grid" id="vitalsList">
+            <!-- Dynamic Vital Cards -->
+          </div>
+        </div>
+
+        <!-- Tab 4: Clinical Timeline -->
+        <div class="tab-content" id="tab-timeline">
+          <div class="timeline-container" id="timelineContainer">
+            <!-- Dynamic Multi-Year Timeline -->
+          </div>
+        </div>
+
+        <!-- Tab 5: Physician Summary -->
+        <div class="tab-content" id="tab-summary">
+          <div class="summary-wrapper">
+            <div class="summary-actions-bar">
+              <span class="summary-tag">Grounded Evidence Extract</span>
+              <button class="btn-copy-summary" id="btnCopySummary">
+                <span>📋</span> Copy Clinical Summary
+              </button>
+            </div>
+            <pre class="summary-code-block" id="summaryContent">Loading clinical summary...</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit / Verify Modal Dialog -->
+  <div class="modal-overlay" id="editModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">👨‍⚕️ Doctor Review & Verification</h3>
+        <button class="modal-close" id="btnModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-instruction">Verify OCR text against original document. Adjust dosage or naming if handwriting was ambiguous.</p>
+        
+        <div class="form-group">
+          <label class="form-label">Entity Name / Drug</label>
+          <input type="text" id="modalInputName" class="form-input" placeholder="e.g. Metformin">
+        </div>
+
+        <div class="form-row" id="modalMedRow">
+          <div class="form-group">
+            <label class="form-label">Dose</label>
+            <input type="text" id="modalInputDose" class="form-input" placeholder="e.g. 500 mg">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Frequency / Timing</label>
+            <input type="text" id="modalInputFreq" class="form-input" placeholder="e.g. 1-0-1">
+          </div>
+        </div>
+
+        <div class="form-row" id="modalLabRow" style="display: none;">
+          <div class="form-group">
+            <label class="form-label">Value</label>
+            <input type="text" id="modalInputValue" class="form-input" placeholder="e.g. 8.2">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unit</label>
+            <input type="text" id="modalInputUnit" class="form-input" placeholder="e.g. %">
+          </div>
+        </div>
+
+        <div class="modal-source-preview">
+          <span class="preview-label">Original OCR Source Text:</span>
+          <span class="preview-text" id="modalSourceText">--</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnModalCancel">Cancel</button>
+        <button class="btn-primary" id="btnModalSave">✓ Confirm & Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multimodal Handwriting Vision AI Settings Modal -->
+  <div class="modal-overlay" id="aiSettingsModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">🧠 Multimodal Doctor Handwriting AI Settings</h3>
+        <button class="modal-close" id="btnAISettingsClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="ai-status-box" id="aiStatusBox" style="background: rgba(255,255,255,0.04); padding: 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 16px;">
+          <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Current Handwriting Decipher Engine:</div>
+          <div id="aiEngineCurrentMode" style="font-size: 0.95rem; font-weight: 600; color: #38bdf8;">Loading engine status...</div>
+        </div>
+
+        <p class="modal-instruction" style="margin-bottom: 14px; line-height: 1.5;">
+          You can upload <strong>ANY real handwritten prescription</strong> or clinical note.
+          By default, MediKiosk runs a local neural OCR engine paired with a 400+ drug Indian Clinical Pharmacopoeia.
+        </p>
+
+        <p class="modal-instruction" style="margin-bottom: 14px; line-height: 1.5; color: #cbd5e1;">
+          To enable <strong>ultra-precise cursive handwriting reading</strong> for extreme doctor handwriting, paste your Google Gemini API key below:
+        </p>
+
+        <div class="form-group">
+          <label class="form-label" style="display: flex; justify-content: space-between;">
+            <span>Gemini API Key (Google AI Studio)</span>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #38bdf8; text-decoration: none; font-size: 0.78rem;">Get Free Key ↗</a>
+          </label>
+          <input type="password" id="inputGeminiApiKey" class="form-input" placeholder="AIzaSy...">
+        </div>
+
+        <div id="aiKeyStatusFeedback" style="font-size: 0.85rem; margin-top: 8px; min-height: 20px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnDisableAIKey">Use Local Offline Engine</button>
+        <button class="btn-primary" id="btnSaveAIKey">💾 Save & Activate Key</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

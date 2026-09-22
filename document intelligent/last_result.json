@@ -1,0 +1,89 @@
+{
+  "document_id": "DOC-F5862E4A",
+  "status": "completed",
+  "result": {
+    "document_id": "DOC-F5862E4A",
+    "original_filename": "WhatsApp Image 2026-09-07 at 3.27.31 PM.jpeg",
+    "image_filename": "DOC-F5862E4A_WhatsApp Image 2026-09-07 at 3.27.31 PM.jpeg",
+    "processed_filename": "proc_DOC-F5862E4A_WhatsApp Image 2026-09-07 at 3.27.31 PM.jpeg",
+    "orig_dimensions": [
+      275,
+      431
+    ],
+    "document_type": "UNKNOWN",
+    "document_type_confidence": 0.0,
+    "classification_details": {},
+    "ocr_blocks": [
+      {
+        "text": "R",
+        "confidence": 0.925,
+        "bbox": [
+          47,
+          115,
+          59,
+          127
+        ],
+        "page": 1
+      },
+      {
+        "text": "Adeaat",
+        "confidence": 0.682,
+        "bbox": [
+          76,
+          270,
+          157,
+          292
+        ],
+        "page": 1
+      },
+      {
+        "text": "luidinab",
+        "confidence": 0.613,
+        "bbox": [
+          147,
+          268,
+          245,
+          289
+        ],
+        "page": 1
+      },
+      {
+        "text": "11344)",
+        "confidence": 0.733,
+        "bbox": [
+          204,
+          365,
+          264,
+          393
+        ],
+        "page": 1
+      },
+      {
+        "text": "Swe.\uff08",
+        "confidence": 0.631,
+        "bbox": [
+          155,
+          380,
+          207,
+          391
+        ],
+        "page": 1
+      }
+    ],
+    "extracted_entities": {
+      "document_date": null,
+      "patient_info": {},
+      "medications": [],
+      "investigations": [],
+      "vitals": []
+    },
+    "unverified_items": [],
+    "summary": {
+      "summary_text": "=== MEDIKIOSK CLINICAL DOCUMENT SUMMARY ===\nDocument ID: DOC-F5862E4A\nDocument Type: Unknown\nExtracted Date: None\nPatient: Not Specified (Age: N/A)\n\nCURRENT MEDICATIONS:\n\u2022 None documented in this record\n\nINVESTIGATIONS & LABS:\n\u2022 None documented in this record\n\nRECORDED VITALS:\n\u2022 None documented in this record\n\nCRITICAL PHYSICIAN SAFEGUARDS:\n\u2022 All extracted entities meet high-confidence threshold (>80%).\n\u2022 Note: Extracted data is grounded in document evidence and requires clinical correlation.",
+      "has_warnings": false,
+      "verification_count": 0
+    },
+    "status": "completed",
+    "processed_at": 1789208757.6689413
+  }
+}

@@ -1,0 +1,73 @@
+================================================================================
+                    MEDIKIOSK - CROSS-DEVICE RUN GUIDE
+         (Runs on Windows, Mac, Linux, Android, iPhone, iPad, Tablets)
+================================================================================
+
+This project is built to run on EVERY device with ZERO dependencies or setup required.
+
+--------------------------------------------------------------------------------
+1. RUNNING ON LAPTOPS / DESKTOPS (WINDOWS, MAC, LINUX)
+--------------------------------------------------------------------------------
+Method A (1-Click on Windows):
+   - Double-click the file: "s.bat"
+
+Method B (Any OS / Any Browser):
+   - Simply double-click "standalone_kiosk.html" (or right-click -> Open with Chrome / Edge / Safari / Firefox).
+   - Works completely offline and requires NO software installation.
+
+
+--------------------------------------------------------------------------------
+2. RUNNING ON MOBILE PHONES & TABLETS (ANDROID / iOS / IPAD)
+--------------------------------------------------------------------------------
+Method A: Direct File Open
+   - Copy or send "standalone_kiosk.html" to your phone or tablet (via WhatsApp, Google Drive, Email, or USB).
+   - Tap the file to open it in Chrome, Safari, or your default mobile browser.
+
+Method B: Run on Same Wi-Fi Network (Hospital / Office / Demo)
+   1. On your laptop/PC, start Vite server with host flag:
+      npm run dev -- --host
+   2. It will display a Network URL, for example:
+      Network: http://192.168.1.X:5173/
+   3. Open that URL on any mobile, tablet, or touch terminal connected to the same Wi-Fi.
+
+
+--------------------------------------------------------------------------------
+3. RUNNING ON TOUCHSCREEN KIOSK TERMINALS / SMART TVS
+--------------------------------------------------------------------------------
+- Open "standalone_kiosk.html" in the browser and press F11 (or toggle Kiosk Fullscreen Mode in Chrome / Edge).
+- Touch screen keypads, on-screen numpads, and large buttons are pre-configured for touch interactions.
+
+
+--------------------------------------------------------------------------------
+4. DEVELOPER MODE (VITE + REACT)
+--------------------------------------------------------------------------------
+If you want to modify source code in React:
+   1. Install dependencies:
+      npm install
+   2. Start development server:
+      npm run dev
+   3. Open in browser:
+      http://localhost:5173
+
+
+--------------------------------------------------------------------------------
+KEY FEATURES WORKING ON ALL DEVICES:
+--------------------------------------------------------------------------------
+✓ Existing Patient Login (14-digit ABHA ID & 12-digit Aadhaar Card)
+✓ Simulated Biometric Fingerprint Scanner (STQC UIDAI style)
+✓ New Patient Registration Modal (Aadhaar, ABHA, Basic details)
+✓ Multilingual Voice Synthesis (English, Hindi, Marathi)
+✓ Touch Screen Keypad / On-screen Numpad for kiosks & tablets
+✓ Medical Doodle Theme with 100% responsive fluid layout
+================================================================================
+Hospital Admin:
+- Email: hospital.admin@medikiosk.gov.in
+- Passcode: hosp@1234
+- Attributes (5): Live OPD Queues & Load, Customer Analytics, Kiosk Hardware, Doctor in Chamber, ABDM & DPDP Compliance
+- Features: Cute Hospital Switcher (🏥✨) when >1 hospitals exist, + Add Hospital modal
+
+Government & Stakeholders:
+- Email: govt.stakeholder@abdm.gov.in
+- Passcode: govt@1234
+- Attributes (7): National Surveillance Directorate + All 6 attributes + MongoDB Studio
+- Features: All Hospitals directory with 1-click instant live telemetry & details inspection modal
