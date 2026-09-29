@@ -494,7 +494,7 @@ class MediKioskNativePythonHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_json(delete_medical_document(patient_id=p_id, document_id=d_id, data=data))
 
             # --- 5. SPEECH SYNTHESIS & VOICE AI (BHASHINI) ---
-            if path in ["/api/v1/tts", "/api/tts", "/api/v1/speech/synthesize"]:
+            if path in ["/api/v1/bhashini/tts", "/api/v1/tts", "/api/tts", "/api/v1/speech/synthesize"]:
                 text = data.get("text", "")
                 language = data.get("language", "hindi")
                 gender = data.get("gender", "female")

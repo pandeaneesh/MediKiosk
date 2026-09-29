@@ -43,7 +43,20 @@ import {
 } from 'lucide-react';
 import DashavidhaModal, { DEFAULT_DASHAVIDHA } from './components/DashavidhaModal';
 import api from './utils/api';
-import { sounds } from './utils/audioTTS';
+import { sounds, speakInstruction, stopSpeech } from './utils/audioTTS';
+
+const BHASHINI_LANGUAGES = [
+  { code: 'english', label: 'English', native: 'English' },
+  { code: 'hindi', label: 'Hindi', native: 'हिंदी' },
+  { code: 'marathi', label: 'Marathi', native: 'मराठी' },
+  { code: 'gujarati', label: 'Gujarati', native: 'ગુજરાતી' },
+  { code: 'tamil', label: 'Tamil', native: 'தமிழ்' },
+  { code: 'telugu', label: 'Telugu', native: 'తెలుగు' },
+  { code: 'kannada', label: 'Kannada', native: 'ಕನ್ನಡ' },
+  { code: 'bengali', label: 'Bengali', native: 'বাংলা' },
+  { code: 'punjabi', label: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
+  { code: 'malayalam', label: 'Malayalam', native: 'മലയാളം' }
+];
 
 const COMMON_PAIN_SPOTS = [
   { region: 'abdomen', side: 'right', loc: 'upper', label: 'Upper Right Belly', sub: 'Under right ribs / Liver & Gallbladder', pos: [0.65, -0.65, 1.35] },
@@ -78,7 +91,7 @@ const PatientDashboard = ({ patient, onLogout }) => {
   const [isLaunchingMannequin, setIsLaunchingMannequin] = useState(false);
   const [mannequinLaunchMsg, setMannequinLaunchMsg] = useState('');
 
-  // --- AI Health Interview States ---
+  // --- AI Health Interview & Bhashini Voice States ---
   const [interviewSessionId, setInterviewSessionId] = useState(null);
   const [interviewMessages, setInterviewMessages] = useState([]);
   const [interviewInput, setInterviewInput] = useState('');
@@ -88,8 +101,11 @@ const PatientDashboard = ({ patient, onLogout }) => {
   const [interviewRedFlags, setInterviewRedFlags] = useState([]);
   const [interviewSummary, setInterviewSummary] = useState(null);
   const [interviewSystem, setInterviewSystem] = useState('allopathy');
-  const [interviewLanguage, setInterviewLanguage] = useState('english');
+  const [interviewLanguage, setInterviewLanguage] = useState('hindi');
   const [isInterviewCompleted, setIsInterviewCompleted] = useState(false);
+  const [isAutoVoiceEnabled, setIsAutoVoiceEnabled] = useState(true);
+  const [speakingMsgId, setSpeakingMsgId] = useState(null);
+  const [isListeningMic, setIsListeningMic] = useState(false);
 
   // --- OCR / Medical Documents States ---
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
@@ -293,6 +309,63 @@ const PatientDashboard = ({ patient, onLogout }) => {
     }
   };
 
+  // --- Bhashini & Voice Synthesis Handlers ---
+  const handleSpeakText = (text, msgId = null) => {
+    if (!text) return;
+    if (speakingMsgId === msgId && msgId !== null) {
+      stopSpeech();
+      setSpeakingMsgId(null);
+      return;
+    }
+    stopSpeech();
+    setSpeakingMsgId(msgId);
+    speakInstruction(
+      text,
+      interviewLanguage,
+      () => setSpeakingMsgId(msgId),
+      () => setSpeakingMsgId(null)
+    );
+  };
+
+  const handleStartMic = () => {
+    if (typeof window === 'undefined' || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      alert("Speech recognition is not supported in this browser. Please type your response.");
+      return;
+    }
+    sounds.playBeep(700, 0.1);
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    const langCodeMap = {
+      hindi: 'hi-IN', marathi: 'mr-IN', gujarati: 'gu-IN',
+      tamil: 'ta-IN', telugu: 'te-IN', kannada: 'kn-IN',
+      bengali: 'bn-IN', punjabi: 'pa-IN', malayalam: 'ml-IN',
+      english: 'en-IN'
+    };
+    recognition.lang = langCodeMap[interviewLanguage] || 'hi-IN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    setIsListeningMic(true);
+
+    recognition.onresult = (event) => {
+      const speechToText = event.results[0][0].transcript;
+      setInterviewInput(prev => (prev ? `${prev} ${speechToText}` : speechToText));
+      setIsListeningMic(false);
+    };
+
+    recognition.onerror = (err) => {
+      console.warn("Speech recognition error:", err);
+      setIsListeningMic(false);
+    };
+
+    recognition.onend = () => {
+      setIsListeningMic(false);
+    };
+
+    recognition.start();
+  };
+
   // --- AI Health Interview Handlers ---
   const handleStartInterview = async (medicalSystem = 'allopathy') => {
     sounds.playClick();
@@ -300,20 +373,27 @@ const PatientDashboard = ({ patient, onLogout }) => {
     setInterviewSystem(medicalSystem);
     try {
       const res = await api.startAIInterview(patientId, medicalSystem, interviewLanguage);
-      if (res?.success) {
+      if (res?.success && res.aiMessage) {
         setInterviewSessionId(res.sessionId);
         setInterviewMessages([res.aiMessage]);
         setInterviewPhase(res.phase || 'select_system');
         setInterviewProgress(res.progress || 10);
         setIsInterviewCompleted(false);
+
+        if (isAutoVoiceEnabled && res.aiMessage.content) {
+          handleSpeakText(res.aiMessage.content, res.aiMessage.id || 'msg-1');
+        }
       }
     } catch (err) {
       console.warn("Interview start fallback:", err);
-      setInterviewSessionId(`kiosk-local-${Date.now().toString().slice(-4)}`);
-      setInterviewMessages([{
+      const fallbackMsg = {
         id: "msg-1",
         role: "ai",
-        content: "Welcome to MediKiosk AI Clinical Triage. Please describe what symptoms or discomfort you are experiencing today.",
+        content: interviewLanguage === 'hindi' 
+          ? "मेडिकियोस्क एआई नैदानिक ​​जांच में आपका स्वागत है। कृपया बताएं कि आज आपको क्या लक्षण या असुविधा महसूस हो रही है।"
+          : interviewLanguage === 'marathi'
+          ? "मेडीकियोस्क एआय क्लिनिकल चाचणीमध्ये आपले स्वागत आहे. कृपया सांगा की आज तुम्हाला काय त्रास होत आहे."
+          : "Welcome to MediKiosk AI Clinical Triage. Please describe what symptoms or discomfort you are experiencing today.",
         options: [
           { label: "Stomach / Abdominal Pain", value: "I have stomach pain" },
           { label: "Chest Pain / Discomfort", value: "I have chest pain" },
@@ -321,7 +401,12 @@ const PatientDashboard = ({ patient, onLogout }) => {
           { label: "Acidity / Sour Reflux", value: "I have heartburn and acidity" }
         ],
         question_type: "open_text"
-      }]);
+      };
+      setInterviewSessionId(`kiosk-local-${Date.now().toString().slice(-4)}`);
+      setInterviewMessages([fallbackMsg]);
+      if (isAutoVoiceEnabled) {
+        handleSpeakText(fallbackMsg.content, fallbackMsg.id);
+      }
     } finally {
       setInterviewLoading(false);
     }
@@ -332,6 +417,7 @@ const PatientDashboard = ({ patient, onLogout }) => {
     if (!textToSend || !textToSend.trim()) return;
 
     sounds.playClick();
+    stopSpeech();
     const newMsgList = [
       ...interviewMessages,
       { id: `user-${Date.now()}`, role: "patient", content: textToSend }
@@ -349,11 +435,16 @@ const PatientDashboard = ({ patient, onLogout }) => {
         interviewLanguage
       );
 
-      if (res?.success) {
+      if (res?.success && res.aiMessage) {
         setInterviewMessages(prev => [...prev, res.aiMessage]);
         setInterviewPhase(res.currentPhase || 'socrates_questions');
         setInterviewProgress(res.progress || 50);
         if (res.redFlags?.length > 0) setInterviewRedFlags(res.redFlags);
+        
+        if (isAutoVoiceEnabled && res.aiMessage.content) {
+          handleSpeakText(res.aiMessage.content, res.aiMessage.id || `ai-${Date.now()}`);
+        }
+
         if (res.isCompleted || res.doctorSummary) {
           setIsInterviewCompleted(true);
           setInterviewSummary(res.doctorSummary);
@@ -381,20 +472,23 @@ const PatientDashboard = ({ patient, onLogout }) => {
     } catch (err) {
       console.warn("Interview chat fallback:", err);
       // Resilient fallback reply
-      setInterviewMessages(prev => [
-        ...prev,
-        {
-          id: `ai-${Date.now()}`,
-          role: "ai",
-          content: "Recorded your symptom details. Where on your body do you feel this discomfort? You can use the 3D Mannequin tab or choose below.",
-          options: [
-            { label: "Lower Back", value: "Lower Back" },
-            { label: "Upper Abdomen", value: "Upper Abdomen" },
-            { label: "Chest Area", value: "Chest Area" }
-          ],
-          question_type: "single_choice"
-        }
-      ]);
+      const fallbackMsg = {
+        id: `ai-${Date.now()}`,
+        role: "ai",
+        content: interviewLanguage === 'hindi'
+          ? "आपके विवरण दर्ज कर लिए गए हैं। शरीर में कहां दर्द या परेशानी महसूस हो रही है?"
+          : "Recorded your symptom details. Where on your body do you feel this discomfort? You can use the 3D Mannequin tab or choose below.",
+        options: [
+          { label: "Lower Back", value: "Lower Back" },
+          { label: "Upper Abdomen", value: "Upper Abdomen" },
+          { label: "Chest Area", value: "Chest Area" }
+        ],
+        question_type: "single_choice"
+      };
+      setInterviewMessages(prev => [...prev, fallbackMsg]);
+      if (isAutoVoiceEnabled) {
+        handleSpeakText(fallbackMsg.content, fallbackMsg.id);
+      }
     } finally {
       setInterviewLoading(false);
     }
@@ -802,6 +896,56 @@ const PatientDashboard = ({ patient, onLogout }) => {
             )}
           </div>
 
+          {/* Bhashini Multilingual & Voice Expansion Toolbar */}
+          <div className="p-3 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl text-white flex flex-wrap items-center justify-between gap-3 shadow-md border border-blue-700/50">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-200 border border-cyan-400/30 text-xs font-black flex items-center gap-1.5">
+                <Volume2 size={14} className="text-cyan-300 animate-pulse" />
+                <span>Bhashini Voice AI:</span>
+              </span>
+              
+              {/* Language Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto max-w-full sm:max-w-xl scrollbar-none py-0.5">
+                {BHASHINI_LANGUAGES.map(lang => (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => {
+                      sounds.playClick();
+                      setInterviewLanguage(lang.code);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap border ${
+                      interviewLanguage === lang.code
+                        ? 'bg-cyan-500 text-slate-950 border-cyan-300 font-extrabold shadow-sm'
+                        : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/15'
+                    }`}
+                  >
+                    <span>{lang.native}</span>
+                    <span className="text-[10px] opacity-75 ml-1">({lang.label})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Auto Voice Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                sounds.playClick();
+                setIsAutoVoiceEnabled(prev => !prev);
+                if (isAutoVoiceEnabled) stopSpeech();
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 border shadow-sm ${
+                isAutoVoiceEnabled
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-300'
+                  : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              {isAutoVoiceEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              <span>{isAutoVoiceEnabled ? "🔊 Auto Voice ON" : "🔇 Voice Muted"}</span>
+            </button>
+          </div>
+
           {/* Chat Flow Container */}
           <div className="bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden shadow-inner flex flex-col h-[520px]">
             
@@ -829,20 +973,42 @@ const PatientDashboard = ({ patient, onLogout }) => {
                   </div>
                   <h4 className="text-base font-extrabold text-slate-800">Ready to Start Health Interview</h4>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Click "Allopathy" or "AYUSH" above to begin your interactive AI intake interview.
+                    Click "Allopathy" or "AYUSH" above to begin your interactive AI intake interview. Voice audio in {BHASHINI_LANGUAGES.find(l => l.code === interviewLanguage)?.label || 'Hindi'} is enabled.
                   </p>
                 </div>
               ) : (
                 interviewMessages.map((msg, idx) => {
                   const isAi = msg.role === 'ai' || msg.role === 'system';
+                  const msgIdKey = msg.id || idx;
+                  const isThisSpeaking = speakingMsgId === msgIdKey;
+
                   return (
-                    <div key={msg.id || idx} className={`flex flex-col ${isAi ? 'items-start' : 'items-end'}`}>
+                    <div key={msgIdKey} className={`flex flex-col ${isAi ? 'items-start' : 'items-end'}`}>
                       <div className={`max-w-xl p-4 rounded-2xl text-sm ${
                         isAi 
                           ? 'bg-white border border-slate-200 text-slate-900 shadow-sm rounded-tl-none' 
                           : 'bg-blue-600 text-white shadow-md rounded-tr-none'
                       }`}>
                         <p className="leading-relaxed font-medium">{msg.content}</p>
+
+                        {/* Listen Voice Action Button for AI Messages */}
+                        {isAi && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-[10px] font-bold text-slate-400">Bhashini Voice Engine</span>
+                            <button
+                              type="button"
+                              onClick={() => handleSpeakText(msg.content, msgIdKey)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                                isThisSpeaking
+                                  ? 'bg-amber-400 text-slate-950 font-black animate-pulse shadow'
+                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
+                              }`}
+                            >
+                              {isThisSpeaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                              <span>{isThisSpeaking ? "Stop Voice" : "🔊 Listen Voice"}</span>
+                            </button>
+                          </div>
+                        )}
 
                         {/* Quick Option Buttons */}
                         {isAi && msg.options && msg.options.length > 0 && !isInterviewCompleted && (
@@ -877,17 +1043,32 @@ const PatientDashboard = ({ patient, onLogout }) => {
               )}
             </div>
 
-            {/* Input Bar */}
+            {/* Input Bar with Speech Recognition Mic */}
             <div className="p-3.5 bg-white border-t border-slate-200 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleStartMic}
+                disabled={isInterviewCompleted}
+                className={`p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center border shadow-sm ${
+                  isListeningMic 
+                    ? 'bg-rose-600 text-white border-rose-500 animate-pulse ring-2 ring-rose-400' 
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                }`}
+                title="Speak answer verbally (Bhashini Voice STT)"
+              >
+                {isListeningMic ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+
               <input
                 type="text"
                 value={interviewInput}
                 onChange={(e) => setInterviewInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSendInterviewMessage(interviewInput); }}
-                placeholder="Type your symptoms or answers here..."
+                placeholder={isListeningMic ? "Listening to your voice..." : "Type your symptoms or answers here..."}
                 disabled={isInterviewCompleted}
                 className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
               />
+
               <button
                 type="button"
                 onClick={() => handleSendInterviewMessage(interviewInput)}

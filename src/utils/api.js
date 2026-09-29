@@ -386,6 +386,18 @@ export const api = {
     return await request(`/patient/interview/${patientId}`);
   },
 
+  synthesizeSpeech: async (text, language = 'hindi', gender = 'female') => {
+    try {
+      return await request('/bhashini/tts', {
+        method: 'POST',
+        body: JSON.stringify({ text, language, gender }),
+        timeout: 4000
+      });
+    } catch (_) {
+      return { success: false, error: "Bhashini backend offline fallback" };
+    }
+  },
+
   // --- 3D Anatomical Pain Mapping & Digital Mannequin ---
   launchPainMapping: async (gender = 'male', patientId = 'PT-NEW') => {
     return await request('/patient/pain-mapping/launch', {

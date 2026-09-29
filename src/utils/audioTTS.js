@@ -122,15 +122,27 @@ async function fetchElevenLabsAudio(text, language, apiKey) {
   return audioUrl;
 }
 
-// Universal Universal Online Audio Stream (Guarantees Native Marathi & Hindi Audio on ANY Device)
+// Universal Universal Online Audio Stream (Guarantees Native Indian Language Audio on ANY Device)
 function playUniversalAudioStream(text, language, onStart, onEnd) {
   try {
-    const langCode = language === 'marathi' ? 'mr' : language === 'hindi' ? 'hi' : 'en-IN';
+    const langMap = {
+      hindi: 'hi', hi: 'hi',
+      marathi: 'mr', mr: 'mr',
+      gujarati: 'gu', gu: 'gu',
+      tamil: 'ta', ta: 'ta',
+      telugu: 'te', te: 'te',
+      kannada: 'kn', kn: 'kn',
+      bengali: 'bn', bn: 'bn',
+      punjabi: 'pa', pa: 'pa',
+      malayalam: 'ml', ml: 'ml',
+      english: 'en-IN', en: 'en-IN'
+    };
+    const langCode = langMap[language?.toLowerCase()] || 'hi';
     const cleanText = encodeURIComponent(text.slice(0, 190));
     const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${langCode}&client=tw-ob&q=${cleanText}`;
 
     const audio = new Audio(audioUrl);
-    audio.playbackRate = language === 'marathi' ? 0.95 : 1.0;
+    audio.playbackRate = (language === 'marathi' || language === 'mr') ? 0.95 : 1.0;
     currentAudioElement = audio;
 
     audio.onplay = () => {
@@ -188,38 +200,27 @@ function getBestBrowserVoice(language) {
   const femaleCandidates = allVoices.filter(v => !isMaleVoice(v));
   const voices = femaleCandidates.length > 0 ? femaleCandidates : allVoices;
 
-  if (language === 'marathi') {
-    // Marathi Female
-    const mrVoice = voices.find(v => 
-      (v.lang.toLowerCase().startsWith('mr') || v.name.toLowerCase().includes('marathi') || v.name.toLowerCase().includes('aarohi'))
-    ) || allVoices.find(v => v.lang.toLowerCase().startsWith('mr'));
-    if (mrVoice) return mrVoice;
+  const langPrefixMap = {
+    hindi: 'hi', hi: 'hi',
+    marathi: 'mr', mr: 'mr',
+    gujarati: 'gu', gu: 'gu',
+    tamil: 'ta', ta: 'ta',
+    telugu: 'te', te: 'te',
+    kannada: 'kn', kn: 'kn',
+    bengali: 'bn', bn: 'bn',
+    punjabi: 'pa', pa: 'pa',
+    malayalam: 'ml', ml: 'ml',
+    english: 'en', en: 'en'
+  };
+  const targetPrefix = langPrefixMap[language?.toLowerCase()] || 'hi';
 
-    // Hindi/Devanagari Female fallback
-    const hiVoice = voices.find(v => 
-      (v.lang.toLowerCase().startsWith('hi') || v.name.toLowerCase().includes('hindi')) &&
-      (v.name.toLowerCase().includes('swara') || v.name.toLowerCase().includes('kalpana') || isFemaleVoice(v))
-    ) || allVoices.find(v => v.lang.toLowerCase().startsWith('hi'));
-    if (hiVoice) return hiVoice;
+  const matchVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetPrefix)) ||
+                     allVoices.find(v => v.lang.toLowerCase().startsWith(targetPrefix));
+  if (matchVoice) return matchVoice;
 
-    // Indian English Female
-    const inEn = voices.find(v => v.lang.toLowerCase().includes('en-in') || v.name.toLowerCase().includes('india'));
-    if (inEn) return inEn;
-
-  } else if (language === 'hindi') {
-    const hiVoice = voices.find(v => 
-      (v.lang.toLowerCase().startsWith('hi') || v.name.toLowerCase().includes('hindi')) &&
-      (v.name.toLowerCase().includes('swara') || v.name.toLowerCase().includes('kalpana') || isFemaleVoice(v))
-    ) || allVoices.find(v => v.lang.toLowerCase().startsWith('hi'));
-    if (hiVoice) return hiVoice;
-
-  } else {
-    const enVoice = voices.find(v => 
-      (v.lang.toLowerCase().includes('en-in') || v.name.toLowerCase().includes('india') || v.lang.toLowerCase().startsWith('en')) &&
-      (v.name.toLowerCase().includes('neerja') || v.name.toLowerCase().includes('heera') || v.name.toLowerCase().includes('zira') || isFemaleVoice(v))
-    ) || allVoices.find(v => v.lang.toLowerCase().includes('en-in') || v.lang.toLowerCase().startsWith('en'));
-    if (enVoice) return enVoice;
-  }
+  // Hindi/Indian English fallback
+  const inEn = voices.find(v => v.lang.toLowerCase().includes('en-in') || v.name.toLowerCase().includes('india'));
+  if (inEn) return inEn;
 
   return voices[0] || null;
 }
@@ -238,20 +239,22 @@ function speakWithBrowserTTS(text, language, onStart, onEnd) {
 
     const utterance = new SpeechSynthesisUtterance(text);
 
-    // Female voice tuning
-    if (language === 'marathi') {
-      utterance.lang = 'mr-IN';
-      utterance.rate = 0.85;
-      utterance.pitch = 1.18;
-    } else if (language === 'hindi') {
-      utterance.lang = 'hi-IN';
-      utterance.rate = 0.88;
-      utterance.pitch = 1.18;
-    } else {
-      utterance.lang = 'en-IN';
-      utterance.rate = 0.90;
-      utterance.pitch = 1.16;
-    }
+    const langCodeMap = {
+      hindi: 'hi-IN', hi: 'hi-IN',
+      marathi: 'mr-IN', mr: 'mr-IN',
+      gujarati: 'gu-IN', gu: 'gu-IN',
+      tamil: 'ta-IN', ta: 'ta-IN',
+      telugu: 'te-IN', te: 'te-IN',
+      kannada: 'kn-IN', kn: 'kn-IN',
+      bengali: 'bn-IN', bn: 'bn-IN',
+      punjabi: 'pa-IN', pa: 'pa-IN',
+      malayalam: 'ml-IN', ml: 'ml-IN',
+      english: 'en-IN', en: 'en-IN'
+    };
+
+    utterance.lang = langCodeMap[language?.toLowerCase()] || 'hi-IN';
+    utterance.rate = (language === 'marathi' || language === 'mr') ? 0.85 : 0.90;
+    utterance.pitch = 1.16;
 
     const voice = getBestBrowserVoice(language);
     if (voice) {
@@ -272,11 +275,63 @@ function speakWithBrowserTTS(text, language, onStart, onEnd) {
   }
 }
 
+// Bhashini Voice Synthesis Dispatcher
+export async function playBhashiniTTS(text, language = 'hindi', onStart = () => {}, onEnd = () => {}, gender = 'female') {
+  try {
+    const res = await api.synthesizeSpeech(text, language, gender);
+    if (res && res.success) {
+      let audioSrc = null;
+      if (res.audioContent) {
+        audioSrc = `data:audio/wav;base64,${res.audioContent}`;
+      } else if (res.audioUrl) {
+        audioSrc = res.audioUrl;
+      }
+
+      if (audioSrc) {
+        const audio = new Audio(audioSrc);
+        currentAudioElement = audio;
+
+        audio.onplay = () => {
+          onStart();
+        };
+
+        audio.onended = () => {
+          currentAudioElement = null;
+          onEnd();
+        };
+
+        audio.onerror = (e) => {
+          console.warn("Bhashini audio playback error, using fallback stream:", e);
+          currentAudioElement = null;
+          playUniversalAudioStream(text, language, onStart, onEnd);
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+        }
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn("Bhashini TTS request error, trying fallback:", err);
+  }
+  return false;
+}
+
 // Master speakInstruction function: Multi-Tier Universal Voice Dispatcher
 export const speakInstruction = async (text, language = 'english', onStart = () => {}, onEnd = () => {}) => {
   stopSpeech();
 
-  // Tier 1: Check for ElevenLabs API Key
+  // Tier 1: Government of India Bhashini Multilingual AI Speech Pipeline
+  try {
+    const success = await playBhashiniTTS(text, language, onStart, onEnd);
+    if (success) return;
+  } catch (err) {
+    console.warn("Bhashini tier bypassed, attempting next voice tier:", err);
+  }
+
+  // Tier 2: Check for ElevenLabs API Key
   const apiKey = getElevenLabsApiKey();
   if (apiKey) {
     try {
