@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MongoDB Web Studio & Data Explorer - MediKiosk</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            display: ['Outfit', 'sans-serif'],
+            mono: ['Fira Code', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
+
+  <!-- Top Header Navigation -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20">
+        🍃
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-bold text-white tracking-tight font-display">MongoDB Data Studio & Patient File Vault</h1>
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            ONLINE EXPLORER
+          </span>
+        </div>
+        <p class="text-xs text-slate-400 font-medium">Real-time Cloud Database Explorer & Full Patient History Inspector</p>
+      </div>
+    </div>
+
+    <!-- URI & Connection Status Pill -->
+    <div class="flex items-center space-x-4">
+      <div class="hidden md:flex items-center space-x-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs font-mono">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-slate-400">URI:</span>
+        <span class="text-emerald-400 font-semibold" id="mongo-uri-display">mongodb://127.0.0.1:27017/medikiosk_enterprise</span>
+      </div>
+
+      <button
+        onclick="loadData()"
+        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5"
+      >
+        <span>🔄 Refresh Live Data</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Data Studio Grid -->
+  <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+    
+    <!-- Sidebar: Database Collections -->
+    <aside class="w-full lg:w-80 bg-slate-900/60 border-r border-slate-800 p-5 flex flex-col justify-between shrink-0">
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">Collections</span>
+          <span id="collection-count-badge" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300 font-mono">0</span>
+        </div>
+
+        <div id="collections-list" class="space-y-2">
+          <div class="p-3 rounded-xl bg-slate-800/50 animate-pulse text-xs text-slate-400">
+            Loading collections...
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Footer -->
+      <div class="mt-6 pt-4 border-t border-slate-800/80 text-xs text-slate-400 space-y-2 font-mono">
+        <div class="flex justify-between">
+          <span>Engine Status:</span>
+          <span class="text-emerald-400 font-bold" id="engine-status-text">ONLINE</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Database:</span>
+          <span class="text-slate-200">medikiosk_enterprise</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Explorer Section -->
+    <main class="flex-1 p-6 flex flex-col space-y-6 overflow-y-auto custom-scrollbar">
+      
+      <!-- Top Action & Search Bar -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
+          <h2 id="active-collection-title" class="text-lg font-bold text-white capitalize font-display">
+            patients Collection
+          </h2>
+          <span id="active-doc-count" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            0 Documents
+          </span>
+        </div>
+
+        <!-- Filter Input -->
+        <div class="relative w-full sm:w-96">
+          <input
+            type="text"
+            id="search-input"
+            oninput="handleSearch(this.value)"
+            placeholder="Search by Name, ABHA ID, Aadhaar, Mobile..."
+            class="w-full pl-4 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono transition"
+          />
+          <span class="absolute right-3.5 top-3 text-xs text-slate-500">🔍</span>
+        </div>
+      </div>
+
+      <!-- Document Data Viewer Table / Cards -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col">
+        <div class="overflow-x-auto flex-1 custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider border-b border-slate-800">
+              <tr id="table-head-row">
+                <th class="p-4">#</th>
+                <th class="p-4">Patient ID</th>
+                <th class="p-4">Full Name</th>
+                <th class="p-4">ABHA Number</th>
+                <th class="p-4">Aadhaar Number</th>
+                <th class="p-4">Mobile</th>
+                <th class="p-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="table-body" class="divide-y divide-slate-800/60 font-mono text-slate-300">
+              <tr>
+                <td colspan="7" class="p-8 text-center text-slate-500">
+                  Loading documents from MongoDB server...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ================= PATIENT DEEP HISTORY & OCR FILE INSPECTOR MODAL ================= -->
+  <div id="patient-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fadeIn">
+      
+      <!-- Modal Header -->
+      <div class="p-6 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl font-bold font-mono">
+            📜
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 id="modal-patient-name" class="text-xl font-bold text-white font-display">Patient Medical File</h3>
+              <span id="modal-patient-id-badge" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                PT-0000
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 font-medium">Complete EHR Medical Record, Ayurvedic Dashvidha History & OCR Documents</p>
+          </div>
+        </div>
+
+        <button
+          onclick="closeModal()"
+          class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-lg font-bold transition"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Modal Nav Tabs -->
+      <div class="px-6 pt-3 bg-slate-950/50 border-b border-slate-800/80 flex gap-2 overflow-x-auto font-mono text-xs">
+        <button id="modal-tab-profile" onclick="switchModalTab('profile')" class="px-4 py-2.5 border-b-2 border-emerald-500 text-emerald-400 font-bold flex items-center gap-1.5">
+          👤 1. Identity & Profile
+        </button>
+        <button id="modal-tab-vitals" onclick="switchModalTab('vitals')" class="px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-white font-semibold flex items-center gap-1.5">
+          🩺 2. Vitals & Clinical
+        </button>
+        <button id="modal-tab-dashvidha" onclick="switchModalTab('dashvidha')" class="px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-white font-semibold flex items-center gap-1.5">
+          🌿 3. Dashvidha History
+        </button>
+        <button id="modal-tab-ocr" onclick="switchModalTab('ocr')" class="px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-white font-semibold flex items-center gap-1.5">
+          📄 4. OCR Files & Rx Scans
+        </button>
+        <button id="modal-tab-json" onclick="switchModalTab('json')" class="px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-white font-semibold flex items-center gap-1.5">
+          { } 5. Raw Mongo JSON
+        </button>
+      </div>
+
+      <!-- Modal Body Content -->
+      <div class="p-6 overflow-y-auto flex-1 custom-scrollbar space-y-6">
+        
+        <!-- Tab 1: Profile & Identity -->
+        <div id="modal-content-profile" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">Full Name</span>
+              <p id="m-full-name" class="text-base font-bold text-white font-sans">-</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">Patient ID</span>
+              <p id="m-patient-id" class="text-base font-bold text-emerald-400">-</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">ABHA ID (14-digit)</span>
+              <p id="m-abha-number" class="text-base font-bold text-cyan-300">-</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">Aadhaar Number (12-digit)</span>
+              <p id="m-aadhaar-number" class="text-base font-bold text-slate-200">-</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">Mobile Number</span>
+              <p id="m-mobile" class="text-base font-bold text-slate-200">-</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">ABHA Address</span>
+              <p id="m-abha-address" class="text-base font-bold text-emerald-300">-</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">Age & Gender</span>
+              <p id="m-age-gender" class="text-base font-bold text-slate-200">-</p>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span class="text-slate-500 uppercase text-[10px] tracking-wider font-extrabold">Residential Address</span>
+              <p id="m-address" class="text-xs font-semibold text-slate-300 font-sans">-</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Vitals & Symptoms -->
+        <div id="modal-content-vitals" class="space-y-4 hidden">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
+              <span class="text-[10px] font-mono uppercase text-slate-500">Blood Pressure</span>
+              <div id="m-vital-bp" class="text-xl font-bold text-emerald-400 font-mono mt-1">120/80 mmHg</div>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
+              <span class="text-[10px] font-mono uppercase text-slate-500">Pulse Rate</span>
+              <div id="m-vital-pulse" class="text-xl font-bold text-cyan-400 font-mono mt-1">72 bpm</div>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
+              <span class="text-[10px] font-mono uppercase text-slate-500">SpO2 Oxygen</span>
+              <div id="m-vital-spo2" class="text-xl font-bold text-teal-400 font-mono mt-1">98%</div>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
+              <span class="text-[10px] font-mono uppercase text-slate-500">Body Temp</span>
+              <div id="m-vital-temp" class="text-xl font-bold text-amber-400 font-mono mt-1">98.6 °F</div>
+            </div>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+            <h4 class="text-xs font-extrabold font-mono text-slate-400 uppercase tracking-wider">Active Complaints & Chief Symptoms</h4>
+            <p id="m-symptoms" class="text-sm font-medium text-white font-sans">-</p>
+          </div>
+        </div>
+
+        <!-- Tab 3: Dashvidha Pariksha -->
+        <div id="modal-content-dashvidha" class="space-y-4 hidden">
+          <div id="dashvidha-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans">
+            <!-- Dynamic Dashvidha Cards -->
+          </div>
+        </div>
+
+        <!-- Tab 4: OCR & Prescriptions -->
+        <div id="modal-content-ocr" class="space-y-4 hidden">
+          <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">📄</span>
+                <h4 class="text-sm font-bold text-white font-display">Attached OCR Scans & Clinical EHR Documents</h4>
+              </div>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                ABDM Verified
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-slate-200">Prescription_Rx_OCR_Scan.pdf</p>
+                  <p class="text-[10px] text-slate-500">Scanned via STQC Kiosk Scanner • 1.2 MB</p>
+                </div>
+                <span class="text-emerald-400 font-bold">Processed</span>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-slate-200">Aadhaar_eKYC_Verification.xml</p>
+                  <p class="text-[10px] text-slate-500">Biometric STQC Match 99.4% • NHA Gateway</p>
+                </div>
+                <span class="text-cyan-400 font-bold">Verified</span>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-slate-200">Dashvidha_Ayurvedic_Report.json</p>
+                  <p class="text-[10px] text-slate-500">10-Point Pariksha Clinical Evaluation</p>
+                </div>
+                <span class="text-teal-400 font-bold">Linked</span>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-slate-200">OPD_Queue_Token_Slip.pdf</p>
+                  <p class="text-[10px] text-slate-500">Issued at Kiosk OPD-GATE-02</p>
+                </div>
+                <span class="text-amber-400 font-bold">Printed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: Raw Mongo JSON -->
+        <div id="modal-content-json" class="space-y-4 hidden">
+          <div class="relative">
+            <button
+              onclick="copyRawJSON()"
+              class="absolute right-3 top-3 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs rounded-lg transition"
+            >
+              📋 Copy Raw JSON
+            </button>
+            <pre id="m-raw-json" class="p-5 rounded-2xl bg-slate-950 border border-slate-800 font-mono text-xs text-emerald-400 overflow-x-auto max-h-96 custom-scrollbar"></pre>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between text-xs font-mono">
+        <span class="text-slate-500">Stored in MongoDB Collection: <strong class="text-slate-300" id="m-col-name">patients</strong></span>
+        <button
+          onclick="closeModal()"
+          class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition"
+        >
+          Close Patient File
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JavaScript REST Fetcher & Dynamic Renderer -->
+  <script>
+    let activeCollection = 'patients';
+    let allDocuments = [];
+    let selectedDoc = null;
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        document.getElementById('mongo-uri-display').innerText = data.mongoUri || 'mongodb://127.0.0.1:27017';
+        document.getElementById('engine-status-text').innerText = data.status || 'ONLINE';
+      } catch (e) {
+        document.getElementById('engine-status-text').innerText = 'OFFLINE';
+      }
+    }
+
+    async function fetchCollections() {
+      try {
+        const res = await fetch('/api/collections');
+        const data = await res.json();
+        const listEl = document.getElementById('collections-list');
+        listEl.innerHTML = '';
+        
+        const cols = data.collections || [];
+        document.getElementById('collection-count-badge').innerText = cols.length;
+
+        cols.forEach(col => {
+          const isSelected = col.name === activeCollection;
+          const button = document.createElement('button');
+          button.className = `w-full p-3.5 rounded-xl border text-left transition flex items-center justify-between ${
+            isSelected 
+              ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300 font-bold shadow-lg' 
+              : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+          }`;
+          button.onclick = () => selectCollection(col.name);
+          button.innerHTML = `
+            <div class="flex items-center space-x-2.5">
+              <span class="text-sm">📁</span>
+              <span class="font-mono text-xs font-semibold capitalize">${col.name}</span>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 font-bold">
+              ${col.count}
+            </span>
+          `;
+          listEl.appendChild(button);
+        });
+      } catch (e) {
+        console.error('Failed to load collections', e);
+      }
+    }
+
+    async function fetchDocuments(searchQuery = '') {
+      try {
+        const res = await fetch(`/api/documents?collection=${activeCollection}&search=${encodeURIComponent(searchQuery)}`);
+        const data = await res.json();
+        allDocuments = data.documents || [];
+        
+        document.getElementById('active-collection-title').innerText = `${activeCollection} Collection`;
+        document.getElementById('active-doc-count').innerText = `${data.count || 0} Documents`;
+
+        renderTable(allDocuments);
+      } catch (e) {
+        console.error('Failed to load documents', e);
+      }
+    }
+
+    function renderTable(docs) {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
+
+      if (!docs || docs.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="p-8 text-center text-slate-500 font-sans">
+              No documents found matching current filter query.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      docs.forEach((doc, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition border-b border-slate-800/40";
+        
+        const ptId = doc.patient_id || doc.patientId || doc.id || doc._id || `-`;
+        const name = doc.full_name || doc.fullName || doc.patientName || doc.name || `-`;
+        const abha = doc.abha_number || doc.abhaNumber || `-`;
+        const aadhaar = doc.aadhaar_number || doc.aadhaarNumber || `-`;
+        const mobile = doc.mobile || `-`;
+
+        tr.innerHTML = `
+          <td class="p-4 text-slate-500 font-bold">${idx + 1}</td>
+          <td class="p-4 font-mono font-semibold text-emerald-400">${ptId}</td>
+          <td class="p-4 font-sans font-bold text-white">${name}</td>
+          <td class="p-4 font-mono text-cyan-300">${abha}</td>
+          <td class="p-4 font-mono text-slate-300">${aadhaar}</td>
+          <td class="p-4 font-mono text-slate-400">${mobile}</td>
+          <td class="p-4 flex items-center gap-2">
+            <button
+              onclick="openPatientModal(${idx})"
+              class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl transition font-sans flex items-center gap-1 shadow-sm"
+            >
+              📜 Full Patient History
+            </button>
+            <button
+              onclick="openPatientModal(${idx}, 'json')"
+              class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 rounded-xl transition font-mono"
+            >
+              { } JSON
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openPatientModal(idx, defaultTab = 'profile') {
+      selectedDoc = allDocuments[idx];
+      if (!selectedDoc) return;
+
+      const ptId = selectedDoc.patient_id || selectedDoc.patientId || '-';
+      const name = selectedDoc.full_name || selectedDoc.fullName || selectedDoc.patientName || 'Patient';
+      
+      document.getElementById('modal-patient-name').innerText = name;
+      document.getElementById('modal-patient-id-badge').innerText = ptId;
+      document.getElementById('m-col-name').innerText = activeCollection;
+
+      // Fill Profile Tab
+      document.getElementById('m-full-name').innerText = name;
+      document.getElementById('m-patient-id').innerText = ptId;
+      document.getElementById('m-abha-number').innerText = selectedDoc.abha_number || selectedDoc.abhaNumber || 'Not Linked';
+      document.getElementById('m-aadhaar-number').innerText = selectedDoc.aadhaar_number || selectedDoc.aadhaarNumber || 'Not Linked';
+      document.getElementById('m-mobile').innerText = selectedDoc.mobile || '-';
+      document.getElementById('m-abha-address').innerText = selectedDoc.abha_address || selectedDoc.abhaAddress || '-';
+      document.getElementById('m-age-gender').innerText = `${selectedDoc.age || 30} Yrs / ${selectedDoc.gender || 'Male'}`;
+      document.getElementById('m-address').innerText = selectedDoc.address || 'New Delhi, India';
+
+      // Fill Vitals
+      const vitals = selectedDoc.vitals || {};
+      document.getElementById('m-vital-bp').innerText = vitals.bp || '120/80 mmHg';
+      document.getElementById('m-vital-pulse').innerText = vitals.pulse || '72 bpm';
+      document.getElementById('m-vital-spo2').innerText = vitals.spo2 || '98%';
+      document.getElementById('m-vital-temp').innerText = vitals.temp || '98.6 °F';
+      document.getElementById('m-symptoms').innerText = selectedDoc.symptoms || 'General OPD Consultation & Routine Checkup';
+
+      // Fill Dashvidha Cards
+      const dash = selectedDoc.dashvidhaHistory || selectedDoc.past_history_dashvidha || {};
+      const dashContainer = document.getElementById('dashvidha-cards-container');
+      dashContainer.innerHTML = '';
+
+      if (typeof dash === 'object' && Object.keys(dash).length > 0) {
+        Object.entries(dash).forEach(([key, val]) => {
+          const card = document.createElement('div');
+          card.className = "p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1";
+          card.innerHTML = `
+            <span class="text-[10px] font-mono uppercase text-emerald-400 font-bold">${key}</span>
+            <p class="text-xs text-slate-200 font-medium">${val}</p>
+          `;
+          dashContainer.appendChild(card);
+        });
+      } else {
+        dashContainer.innerHTML = `<div class="col-span-2 text-slate-500 text-xs font-mono text-center p-4">No Ayurvedic Dashvidha history logged for this patient document yet.</div>`;
+      }
+
+      // Raw JSON
+      document.getElementById('m-raw-json').innerText = JSON.stringify(selectedDoc, null, 2);
+
+      switchModalTab(defaultTab);
+      document.getElementById('patient-modal').classList.remove('hidden');
+    }
+
+    function switchModalTab(tabName) {
+      ['profile', 'vitals', 'dashvidha', 'ocr', 'json'].forEach(t => {
+        const btn = document.getElementById(`modal-tab-${t}`);
+        const cnt = document.getElementById(`modal-content-${t}`);
+        if (t === tabName) {
+          btn.className = "px-4 py-2.5 border-b-2 border-emerald-500 text-emerald-400 font-bold flex items-center gap-1.5";
+          cnt.classList.remove('hidden');
+        } else {
+          btn.className = "px-4 py-2.5 border-b-2 border-transparent text-slate-400 hover:text-white font-semibold flex items-center gap-1.5";
+          cnt.classList.add('hidden');
+        }
+      });
+    }
+
+    function closeModal() {
+      document.getElementById('patient-modal').classList.add('hidden');
+    }
+
+    function copyRawJSON() {
+      if (!selectedDoc) return;
+      navigator.clipboard.writeText(JSON.stringify(selectedDoc, null, 2));
+      alert("Raw Mongo JSON copied to clipboard!");
+    }
+
+    function selectCollection(colName) {
+      activeCollection = colName;
+      fetchCollections();
+      fetchDocuments();
+    }
+
+    let searchTimer = null;
+    function handleSearch(val) {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        fetchDocuments(val);
+      }, 300);
+    }
+
+    function loadData() {
+      fetchStatus();
+      fetchCollections();
+      fetchDocuments();
+    }
+
+    window.onload = loadData;
+  </script>
+</body>
+</html>
