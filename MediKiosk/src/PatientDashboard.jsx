@@ -702,16 +702,142 @@ const PatientDashboard = ({ patient, onLogout, initialTab = 'interview' }) => {
         }
       }
     } catch (err) {
-      console.warn("Interview chat fallback:", err);
+      console.warn("Interview chat fallback activated:", err);
       const isHi = interviewLanguage === 'hindi';
       const isMr = interviewLanguage === 'marathi';
       const patientTurns = newMsgList.filter(m => m.role === 'patient').length;
 
       let fallbackText = "";
       let fallbackOptions = [];
+      let nextPhase = "socrates_questions";
+      let nextProgress = 50;
+      let isCompletedTurn = false;
 
       if (currentSys === 'ayush') {
-        if (patientTurns >= 9) {
+        if (patientTurns === 1) {
+          nextPhase = "prakriti";
+          nextProgress = 20;
+          fallbackText = isHi
+            ? "आयुर्वेदिक दशविध परीक्षा (1/10): आपकी मूल शारीरिक प्रकृति (Prakriti) कैसी है?"
+            : (isMr
+              ? "आयुर्वेदिक दशविध परीक्षा (१/१०): आपली मूळ शारीरिक प्रकृती (Prakriti) कशी आहे?"
+              : "Ayurvedic Dashavidha Pariksha (1/10): What is your baseline natural body constitution (Prakriti)?");
+          fallbackOptions = [
+            { label: isHi ? "वात प्रकृति (Vata - दुबला शरीर, सूखी त्वचा)" : (isMr ? "वात प्रकृती (Vata)" : "Vata (Slender frame, dry skin)"), value: "Vata (वात)" },
+            { label: isHi ? "पित्त प्रकृति (Pitta - मध्यम गठन, गर्म शरीर, एसिडिटी)" : (isMr ? "पित्त प्रकृती (Pitta)" : "Pitta (Medium build, warm, acidity)"), value: "Pitta (पित्त)" },
+            { label: isHi ? "कफ प्रकृति (Kapha - सुदृढ़ शरीर, शांत स्वभाव)" : (isMr ? "कफ प्रकृती (Kapha)" : "Kapha (Solid build, calm)"), value: "Kapha (कफ)" },
+            { label: isHi ? "द्विदोषज (Vata-Pitta मिश्रित)" : (isMr ? "द्विदोषज (Vata-Pitta)" : "Pitta-Vataja (पित्त-वात)"), value: "Pitta-Vataja (पित्त-वात)" }
+          ];
+        } else if (patientTurns === 2) {
+          nextPhase = "vikriti";
+          nextProgress = 30;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (2/10): वर्तमान में आपको क्या मुख्य शारीरिक कष्ट या दोष असंतुलन (Vikriti) महसूस हो रहा है?"
+            : (isMr
+              ? "दशविध परीक्षा (२/१०): सध्या आपल्याला कोणता मुख्य त्रास किंवा लक्षणे (Vikriti) जाणवत आहेत?"
+              : "Dashavidha Pariksha (2/10): What is the primary discomfort or dosha morbidity (Vikriti) troubling you?");
+          fallbackOptions = [
+            { label: isHi ? "अम्लपित्त (Amlapitta - एसिडिटी, जलन व खट्टी डकार)" : (isMr ? "अम्लपित्त (ॲसिडिटी व जळजळ)" : "Amlapitta (Hyperacidity & heartburn)"), value: "Pitta Imbalance (अम्लपित्त)" },
+            { label: isHi ? "संधिवात / कटीशूल (Vata - जोड़ों व कमर में दर्द)" : (isMr ? "संधिवात / कंबरदुखी" : "Sandhivata / Kati Shula (Joint & back pain)"), value: "Vata Imbalance (संधिवात/कटीशूल)" },
+            { label: isHi ? "कफज विकार (Kapha - भारीपन, बलगम व सुस्ती)" : (isMr ? "कफ विकार (जडपणा व कफ)" : "Kapha Imbalance (Heaviness & congestion)"), value: "Kapha Imbalance (कफज विकार)" },
+            { label: isHi ? "अजीर्ण व गैस (Agnimandya - अपच व पेट फूलना)" : (isMr ? "अजीर्ण व गॅसेस" : "Ajeerna (Indigestion & gas)"), value: "Ajeerna (अजीर्ण)" }
+          ];
+        } else if (patientTurns === 3) {
+          nextPhase = "agni";
+          nextProgress = 40;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (3/10): आपकी भूख (अग्नि) और पाचन शक्ति (Ahara Shakti) कैसी है?"
+            : (isMr
+              ? "दशविध परीक्षा (३/१०): आपली भूक (अग्नी) आणि पचन क्षमता (Ahara Shakti) कशी आहे?"
+              : "Dashavidha Pariksha (3/10): How is your digestive fire (Agni) and appetite capacity?");
+          fallbackOptions = [
+            { label: isHi ? "मंदाग्नि (Mandagni - धीमी भूख, पेट में भारीपन)" : (isMr ? "मंदाग्नि (भूक कमी, जडपणा)" : "Mandagni (Slow digestion & heaviness)"), value: "Mandagni (मंदाग्नि)" },
+            { label: isHi ? "तीक्ष्णाग्नि (Tikshnagni - तीव्र भूख व जलन)" : (isMr ? "तीक्ष्णाग्नि (तीव्र भूक व जळजळ)" : "Tikshnagni (Intense hunger & burning)"), value: "Tikshnagni (तीक्ष्णाग्नि)" },
+            { label: isHi ? "विषमाग्नि (Vishamagni - अनियमित भूख, कभी बहुत कभी कम)" : (isMr ? "विषमाग्नि (अनियमित भूक)" : "Vishamagni (Irregular appetite & gas)"), value: "Vishamagni (विषमाग्नि)" },
+            { label: isHi ? "समाग्नि (Samagni - संतुलित भूख व उत्तम पाचन)" : (isMr ? "समाग्नि (संतुलित भूक व पचन)" : "Samagni (Balanced & normal appetite)"), value: "Samagni (समाग्नि)" }
+          ];
+        } else if (patientTurns === 4) {
+          nextPhase = "koshtha";
+          nextProgress = 50;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (4/10): आपका पेट साफ होने की स्थिति (Koshtha / Bowel Movement) कैसी है?"
+            : (isMr
+              ? "दशविध परीक्षा (४/१०): आपले पोट साफ होण्याची स्थिती (Koshtha / Bowel) कशी आहे?"
+              : "Dashavidha Pariksha (4/10): How is your bowel elimination and passage (Koshtha)?");
+          fallbackOptions = [
+            { label: isHi ? "क्रूर कोष्ठ (कब्ज, सख्त मल, 2-3 दिन में एक बार)" : (isMr ? "क्रूर कोष्ठ (बद्धकोष्ठता)" : "Krura Koshtha (Constipation / hard stools)"), value: "Krura Koshtha (क्रूर कोष्ठ)" },
+            { label: isHi ? "मृदु कोष्ठ (दिन में 2-3 बार ढीला मल)" : (isMr ? "मृदु कोष्ठ (पातळ शौच)" : "Mridu Koshtha (Loose frequent motions)"), value: "Mridu Koshtha (मृदु कोष्ठ)" },
+            { label: isHi ? "मध्यम कोष्ठ (प्रतिदिन सुबह 1 बार सुगमता से साफ)" : (isMr ? "मध्यम कोष्ठ (नियमित १ वेळा)" : "Madhyama Koshtha (Normal regular once daily)"), value: "Madhyama Koshtha (मध्यम कोष्ठ)" }
+          ];
+        } else if (patientTurns === 5) {
+          nextPhase = "sara";
+          nextProgress = 60;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (5/10): आपकी शारीरिक धातु सारता, बल और ऊर्जा (Sara & Bala) कैसी है?"
+            : (isMr
+              ? "दशविध परीक्षा (५/१०): आपली शारीरिक ताकद आणि प्रतिकारशक्ती (Sara / Bala) कशी आहे?"
+              : "Dashavidha Pariksha (5/10): How is your overall tissue vitality and physical endurance (Sara)?");
+          fallbackOptions = [
+            { label: isHi ? "प्रवर सार (Pravara - उत्तम चमक, मजबूत हड्डियां, उच्च ऊर्जा)" : (isMr ? "प्रवर सार (उत्तम ऊर्जा व ताकद)" : "Pravara Sara (High vitality & stamina)"), value: "Pravara Sara (प्रवर सार)" },
+            { label: isHi ? "मध्यम सार (Madhyama - सामान्य मध्यम शारीरिक बल)" : (isMr ? "मध्यम सार (मध्यम ताकद)" : "Madhyama Sara (Moderate vitality)"), value: "Madhyama Sara (मध्यम सार)" },
+            { label: isHi ? "अवर सार (Avara - जल्दी थकान, कमजोर इम्यूनिटी)" : (isMr ? "अवर सार (लवकर थकवा)" : "Avara Sara (Low vitality / easily fatigued)"), value: "Avara Sara (अवर सार)" }
+          ];
+        } else if (patientTurns === 6) {
+          nextPhase = "samhanana";
+          nextProgress = 70;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (6/10): आपकी शारीरिक बनावट और संधियों की दृढ़ता (Samhanana & Pramana) कैसी है?"
+            : (isMr
+              ? "दशविध परीक्षा (६/१०): आपली शारीरिक ठेवण आणि हाडांची रचना (Samhanana) कशी आहे?"
+              : "Dashavidha Pariksha (6/10): How is your body frame compactness and bone symmetry (Samhanana)?");
+          fallbackOptions = [
+            { label: isHi ? "सुसंहनन (Su-samhanana - सुगठित मजबूत जोड़ व संतुलित वजन)" : (isMr ? "सुसंहनन (मजबूत व संतुलित बांधा)" : "Su-samhanana (Compact, sturdy & proportionate)"), value: "Su-samhanana (सुसंहनन)" },
+            { label: isHi ? "मध्यम संहनन (Madhyama - सामान्य मध्यम शारीरिक बनावट)" : (isMr ? "मध्यम संहनन (सामान्य बांधा)" : "Madhyama Samhanana (Moderate build)"), value: "Madhyama (मध्यम)" },
+            { label: isHi ? "हीन संहनन (Heena - कमजोर व ढीले जोड़, पतला ढांचा)" : (isMr ? "हीन संहनन (अशक्त किंवा सैल हाडे)" : "Hina Samhanana (Frail / loose frame)"), value: "Hina Samhanana (हीन संहनन)" }
+          ];
+        } else if (patientTurns === 7) {
+          nextPhase = "sattva";
+          nextProgress = 80;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (7/10): आपकी मानसिक शक्ति, तनाव सहने की क्षमता और नींद (Sattva) कैसी है?"
+            : (isMr
+              ? "दशविध परीक्षा (७/१०): आपली मानसिक सहनशीलता, ताणतणाव आणि झोप (Sattva) कशी आहे?"
+              : "Dashavidha Pariksha (7/10): How is your mental resilience, stress tolerance, and sleep quality (Sattva)?");
+          fallbackOptions = [
+            { label: isHi ? "प्रवर सत्त्व (Pravara - शांत मन, गहरी निरंतर नींद, धैर्यवान)" : (isMr ? "प्रवर सत्त्व (शांत मन, गाढ झोप)" : "Pravara Sattva (Calm, deep sleep, resilient)"), value: "Pravara Sattva (प्रवर सत्त्व)" },
+            { label: isHi ? "मध्यम सत्त्व (Madhyama - सामान्य तनाव, कभी-कभी नींद में बाधा)" : (isMr ? "मध्यम सत्त्व (सामान्य ताण)" : "Madhyama Sattva (Moderate stress, light sleep)"), value: "Madhyama Sattva (मध्यम सत्त्व)" },
+            { label: isHi ? "अवर सत्त्व (Avara - अधिक चिंता, बेचैनी, अनिद्रा)" : (isMr ? "अवर सत्त्व (चिंता व अस्वस्थ झोप)" : "Avara Sattva (Anxious, disturbed sleep)"), value: "Avara Sattva (अवर सत्त्व)" }
+          ];
+        } else if (patientTurns === 8) {
+          nextPhase = "satmya";
+          nextProgress = 90;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (8/10): आपकी खान-पान और मौसम के प्रति अनुकूलता (Satmya) कैसी है?"
+            : (isMr
+              ? "दशविध परीक्षा (८/१०): आपल्याला विविध खाद्यपदार्थ व हवामान मानवते का (Satmya)?"
+              : "Dashavidha Pariksha (8/10): How adaptable is your body to different foods, spices, and seasons (Satmya)?");
+          fallbackOptions = [
+            { label: isHi ? "सर्वसात्म्य (सभी रस, मसाले व मौसमी भोजन पच जाता है)" : (isMr ? "सर्वसात्म्य (सर्व अन्न पचते)" : "Sarva-satmya (High adaptability to all foods)"), value: "Sarva-satmya (सर्वसात्म्य)" },
+            { label: isHi ? "मध्यम सात्म्य (सादा घर का खाना अनुकूल रहता है)" : (isMr ? "मध्यम सात्म्य (घरगुती अन्न पचते)" : "Madhyama Satmya (Tolerates routine home food)"), value: "Madhyama Satmya (मध्यम सात्म्य)" },
+            { label: isHi ? "एकसात्म्य / अवर (थोड़े भी बदलाव से पेट खराब/एलर्जी)" : (isMr ? "अवर सात्म्य (किरकोळ बदलानेही त्रास)" : "Avara Satmya (Sensitive stomach & allergies)"), value: "Avara Satmya (अवर सात्म्य)" }
+          ];
+        } else if (patientTurns === 9) {
+          nextPhase = "vyayama_vaya";
+          nextProgress = 95;
+          fallbackText = isHi
+            ? "दशविध परीक्षा (9-10/10): आपकी शारीरिक श्रम (व्यायाम शक्ति) और आयु वर्ग (वय) क्या है?"
+            : (isMr
+              ? "दशविध परीक्षा (९-१०/१०): आपली शारीरिक क्षमता (व्यायाम) आणि वयोगट (वय) काय आहे?"
+              : "Dashavidha Pariksha (9-10/10): What is your physical exercise stamina (Vyayama Shakti) and age bracket (Vaya)?");
+          fallbackOptions = [
+            { label: isHi ? "उत्तम व्यायाम शक्ति • युवा/वयस्क (18-45 वर्ष)" : (isMr ? "उत्तम व्यायाम • तरुण/प्रौढ (१८-४५ वर्षे)" : "Uttama Stamina • Adult (18-45 Yrs)"), value: "Uttama Stamina / Madhyama Vaya" },
+            { label: isHi ? "मध्यम व्यायाम शक्ति • प्रौढ़ (45-60 वर्ष)" : (isMr ? "मध्यम व्यायाम • प्रौढ (४५-६० वर्षे)" : "Madhyama Stamina • Middle Age (45-60 Yrs)"), value: "Madhyama Stamina / Madhyama Vaya" },
+            { label: isHi ? "हल्का श्रम / सांस फूलना • वरिष्ठ (60+ वर्ष)" : (isMr ? "कमी व्यायाम / थकवा • ज्येष्ठ नागरिक (६०+ वर्षे)" : "Avara Stamina • Senior (60+ Yrs)"), value: "Avara Stamina / Vriddha Vaya" }
+          ];
+        } else {
+          isCompletedTurn = true;
+          nextPhase = "completed";
+          nextProgress = 100;
           fallbackText = isHi
             ? "धन्यवाद। आपकी संपूर्ण आयुर्वेदिक दशविध परीक्षा (दशविध परीक्षा) पूरी हो चुकी है और सुरक्षित रूप से दर्ज कर ली गई है। अब कृपया 3D डिजिटल पेन मैपिंग (3D Digital Pain Mapping) पर जाकर 3D मैनिक्विन पर अपने दर्द व परेशानी का सटीक स्थान चिन्हित करें।"
             : (isMr
@@ -723,45 +849,76 @@ const PatientDashboard = ({ patient, onLogout, initialTab = 'interview' }) => {
               value: "proceed_to_painmap"
             }
           ];
-          setIsInterviewCompleted(true);
-        } else {
-          fallbackText = isHi
-            ? "आयुर्वेदिक दशविध परीक्षा (1/10): आपकी मूल शारीरिक प्रकृति (Prakriti) कैसी है?"
-            : (isMr
-              ? "आयुर्वेदिक दशविध परीक्षा (१/१०): आपली मूळ शारीरिक प्रकृती (Prakriti) कशी आहे?"
-              : "Ayurvedic Dashavidha Pariksha (1/10): What is your baseline natural body constitution (Prakriti)?");
-          fallbackOptions = [
-            { label: isHi ? "वात प्रकृति (Vata)" : (isMr ? "वात प्रकृती (Vata)" : "Vata (वात)"), value: "Vata (वात)" },
-            { label: isHi ? "पित्त प्रकृति (Pitta)" : (isMr ? "पित्त प्रकृती (Pitta)" : "Pitta (पित्त)"), value: "Pitta (पित्त)" },
-            { label: isHi ? "कफ प्रकृति (Kapha)" : (isMr ? "कफ प्रकृती (Kapha)" : "Kapha (कफ)"), value: "Kapha (कफ)" },
-            { label: isHi ? "द्विदोषज (Vata-Pitta)" : (isMr ? "द्विदोषज (Vata-Pitta)" : "Pitta-Vataja (पित्त-वात)"), value: "Pitta-Vataja (पित्त-वात)" }
-          ];
         }
       } else {
-        if (patientTurns >= 4) {
-          fallbackText = isHi
-            ? "धन्यवाद। आपकी स्वास्थ्य जानकारी (Clinical Intake) दर्ज कर ली गई है। अब कृपया 3D डिजिटल पेन मैपिंग (3D Digital Pain Mapping) पर जाकर 3D मैनिक्विन पर अपनी समस्या का सटीक स्थान चिन्हित करें।"
-            : (isMr
-              ? "धन्यवाद। आपली आरोग्य माहिती नोंदवली गेली आहे. आता कृपया 3D डिजिटल पेन मॅपिंगवर (3D Digital Pain Mapping) जाऊन 3D मॅनिकीनवर दुखण्याचा अचूक भाग निवडा."
-              : "Thank you. Your clinical intake is complete. Please proceed to 3D Digital Body Pain Mapping to pinpoint your exact pain location on the mannequin.");
-          fallbackOptions = [
-            {
-              label: isHi ? "📍 3D डिजिटल पेन मैपिंग पर जाएं →" : (isMr ? "📍 3D डिजिटल पेन मॅपिंगकडे जा →" : "📍 Proceed to 3D Digital Pain Mapping →"),
-              value: "proceed_to_painmap"
-            }
-          ];
-          setIsInterviewCompleted(true);
-        } else {
+        // ALLOPATHY PROTOCOL (SOCRATES)
+        if (patientTurns === 1) {
+          nextPhase = "chief_complaint";
+          nextProgress = 25;
           fallbackText = isHi
             ? "कृपया बताएं कि आज आपको क्या मुख्य शारीरिक समस्या, दर्द या लक्षण महसूस हो रहे हैं?"
             : (isMr
               ? "कृपया सांगा की आज आपल्याला काय त्रास किंवा मुख्य लक्षणे जाणवत आहेत?"
               : "Please describe the primary discomfort or chief symptoms you are experiencing today.");
           fallbackOptions = [
-            { label: isHi ? "पेट में दर्द / एसिडिटी" : (isMr ? "पोटात दुखणे" : "Abdominal Pain"), value: "Abdominal Pain" },
-            { label: isHi ? "छाती में भारीपन" : (isMr ? "छातीत दुखणे" : "Chest Discomfort"), value: "Chest Discomfort" },
-            { label: isHi ? "कमर या पीठ दर्द" : (isMr ? "पाठ/कंबर दुखी" : "Lower Back Pain"), value: "Lower Back Pain" },
-            { label: isHi ? "जोड़ों में दर्द" : (isMr ? "सांधेदुखी" : "Joint Pain"), value: "Joint Pain" }
+            { label: isHi ? "पेट में दर्द / गैस / एसिडिटी" : (isMr ? "पोटात दुखणे / ॲसिडिटी" : "Abdominal Pain / Acidity"), value: "Abdominal Pain" },
+            { label: isHi ? "छाती में भारीपन / दर्द" : (isMr ? "छातीत दुखणे" : "Chest Heaviness / Pain"), value: "Chest Discomfort" },
+            { label: isHi ? "कमर या पीठ में दर्द व जकड़न" : (isMr ? "पाठ किंवा कंबर दुखी" : "Back Pain / Spine Stiffness"), value: "Lower Back Pain" },
+            { label: isHi ? "जोड़ों व घुटनों में दर्द" : (isMr ? "सांधेदुखी" : "Joint Pain & Stiffness"), value: "Joint Pain" }
+          ];
+        } else if (patientTurns === 2) {
+          nextPhase = "onset_duration";
+          nextProgress = 50;
+          fallbackText = isHi
+            ? "यह तकलीफ आपको कितने समय से है, और किस प्रकार शुरू हुई (अचानक या धीरे-धीरे)?"
+            : (isMr
+              ? "हा त्रास आपल्याला किती दिवसांपासून आहे, आणि दुखणे कशा प्रकारचे आहे?"
+              : "How long have you had this discomfort, and how did it start (sudden or gradual)?");
+          fallbackOptions = [
+            { label: isHi ? "2-3 दिन से (अचानक शुरू हुआ)" : (isMr ? "२-३ दिवसांपासून" : "2-3 Days (Acute onset)"), value: "2-3 Days Acute" },
+            { label: isHi ? "1-2 हफ्ते से (लगातार)" : (isMr ? "१-२ आठवड्यांपासून" : "1-2 Weeks (Continuous)"), value: "1-2 Weeks" },
+            { label: isHi ? "1 महीने से अधिक (पुराना दर्द)" : (isMr ? "१ महिन्यापेक्षा जास्त" : "More than 1 month (Chronic)"), value: "Chronic >1 month" }
+          ];
+        } else if (patientTurns === 3) {
+          nextPhase = "severity_character";
+          nextProgress = 75;
+          fallbackText = isHi
+            ? "दर्द की तीव्रता (Severity) 1 से 10 के पैमाने पर कितनी है, और दर्द किस प्रकार का है (तेज़, जलन, या भारीपन)?"
+            : (isMr
+              ? "दुखण्याची तीव्रता १ ते १० च्या दरम्यान किती आहे, आणि हे कशामुळे वाढते?"
+              : "On a scale of 1 to 10, how severe is the pain, and what is its character (sharp, burning, throbbing, or dull ache)?");
+          fallbackOptions = [
+            { label: isHi ? "हल्का दर्द (1-3 / 10)" : (isMr ? "कमी दुखणे (१-३)" : "Mild (1-3 / 10)"), value: "Mild 3/10" },
+            { label: isHi ? "मध्यम दर्द (4-6 / 10)" : (isMr ? "मध्यम दुखणे (४-६)" : "Moderate (5/10)"), value: "Moderate 5/10" },
+            { label: isHi ? "अत्यधिक तीव्र दर्द (7-10 / 10)" : (isMr ? "तीव्र दुखणे (७-१०)" : "Severe (8/10)"), value: "Severe 8/10" }
+          ];
+        } else if (patientTurns === 4) {
+          nextPhase = "aggravating_factors";
+          nextProgress = 90;
+          fallbackText = isHi
+            ? "क्या किसी खास काम, भोजन, झुकने या चलने से यह दर्द बढ़ता या कम होता है?"
+            : (isMr
+              ? "काही काम केल्याने, जेवणाने किंवा हालचालीने दुखणे वाढते का?"
+              : "Does anything specific aggravate or relieve the discomfort (e.g., meals, movement, bending, rest)?");
+          fallbackOptions = [
+            { label: isHi ? "झुकने या चलने से बढ़ता है" : (isMr ? "वाकल्याने किंवा चालल्याने वाढते" : "Worse with movement / bending"), value: "Worse with movement" },
+            { label: isHi ? "खाना खाने या खाली पेट बढ़ता है" : (isMr ? "जेवणानंतर किंवा रिकाम्या पोटी वाढते" : "Worse after meals / fasting"), value: "Worse after food" },
+            { label: isHi ? "लगातार बना रहता है (कोई बदलाव नहीं)" : (isMr ? "सतत दुखत राहते" : "Constant without change"), value: "Constant" }
+          ];
+        } else {
+          isCompletedTurn = true;
+          nextPhase = "completed";
+          nextProgress = 100;
+          fallbackText = isHi
+            ? "धन्यवाद। आपकी एलोपैथिक स्वास्थ्य जानकारी (Allopathic Clinical Intake) दर्ज कर ली गई है। अब कृपया 3D डिजिटल पेन मैपिंग (3D Digital Pain Mapping) पर जाकर 3D मैनिक्विन पर अपनी समस्या का सटीक स्थान चिन्हित करें।"
+            : (isMr
+              ? "धन्यवाद। आपली ॲलोपॅथिक माहिती नोंदवली गेली आहे. आता कृपया 3D डिजिटल पेन मॅपिंगवर (3D Digital Pain Mapping) जाऊन 3D मॅनिकीनवर दुखण्याचा अचूक भाग निवडा."
+              : "Thank you. Your Allopathic clinical intake is complete. Please proceed to 3D Digital Body Pain Mapping to pinpoint your exact pain location on the mannequin.");
+          fallbackOptions = [
+            {
+              label: isHi ? "📍 3D डिजिटल पेन मैपिंग पर जाएं →" : (isMr ? "📍 3D डिजिटल पेन मॅपिंगकडे जा →" : "📍 Proceed to 3D Digital Pain Mapping →"),
+              value: "proceed_to_painmap"
+            }
           ];
         }
       }
@@ -773,8 +930,47 @@ const PatientDashboard = ({ patient, onLogout, initialTab = 'interview' }) => {
         options: fallbackOptions,
         question_type: "single_choice"
       };
+
       setInterviewMessages(prev => [...prev, fallbackReply]);
-      if (isVoiceEnabled) {
+      setInterviewPhase(nextPhase);
+      setInterviewProgress(nextProgress);
+
+      if (isCompletedTurn) {
+        setIsInterviewCompleted(true);
+        const summaryObj = buildClinicalSummary({
+          symptom: textToSend,
+          site: painMapping?.laymanSummary || "Abdomen",
+          severity: painIntensity || 5
+        }, interviewRedFlags);
+        setInterviewSummary(summaryObj);
+
+        try {
+          api.saveAIInterview({
+            patientId: patientId,
+            sessionId: interviewSessionId || `kiosk-sess-${Date.now()}`,
+            complaint: textToSend,
+            symptoms: textToSend,
+            duration: "Recent",
+            severity: parseInt(painIntensity || 5, 10),
+            painLocation: painMapping?.laymanSummary || "Abdomen",
+            painIntensity: painIntensity || 5,
+            medicalSystem: currentSys,
+            language: interviewLanguage,
+            aiSummary: summaryObj,
+            clinicalData: { symptom: textToSend, site: painMapping?.laymanSummary, severity: painIntensity, dashavidha: dashavidhaData },
+            dashvidhaHistory: dashavidhaData,
+            messages: [...newMsgList, fallbackReply],
+            redFlags: interviewRedFlags,
+            isCompleted: true
+          }).catch(() => {});
+
+          if (currentSys === 'ayush') {
+            api.saveDashavidha(patientId, dashavidhaData).catch(() => {});
+          }
+        } catch (_) {}
+      }
+
+      if (isVoiceEnabled && fallbackReply.content) {
         speakAiMessage(fallbackReply.content, fallbackReply.id);
       }
     } finally {

@@ -27,7 +27,7 @@ try:
     from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
     DEFAULT_MONGO_URI = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/medikiosk_enterprise")
-    client = MongoClient(DEFAULT_MONGO_URI, serverSelectionTimeoutMS=2000)
+    client = MongoClient(DEFAULT_MONGO_URI, serverSelectionTimeoutMS=500)
     client.admin.command('ping')
     is_mongo_connected = True
     db_client = client

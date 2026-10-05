@@ -738,6 +738,11 @@ export const api = {
     return await request(`/admin/hospital/${hospitalId}`);
   },
 
+  getAdminPatients: async (hospitalId = null) => {
+    const query = hospitalId && hospitalId !== 'ALL' ? `?hospital_id=${encodeURIComponent(hospitalId)}` : '';
+    return await request(`/admin/patients${query}`);
+  },
+
   getAllHospitals: async () => {
     return await request('/admin/hospitals');
   },

@@ -45,17 +45,23 @@ class MediKioskGeminiEngine:
     """
 
     CANDIDATE_MODELS = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-2.5-flash"
+        "gemini-2.5-flash",
+        "gemini-2.0-flash"
     ]
 
     def __init__(self):
         self.api_key = os.environ.get("GEMINI_API_KEY", "").strip().strip("\"'")
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        self._key_invalid = False
 
     def is_configured(self) -> bool:
-        return bool(self.api_key and (self.api_key.startswith("AIzaSy") or len(self.api_key) > 20))
+        if self._key_invalid:
+            return False
+        if not self.api_key:
+            return False
+        if self.api_key.startswith("AQ.") or "your-api-key" in self.api_key.lower() or len(self.api_key) < 20:
+            return False
+        return True
 
     def _call_gemini_raw(self, prompt: str, image_base64: Optional[str] = None, mime_type: str = "image/jpeg", json_mode: bool = True) -> Optional[str]:
         if not self.is_configured():
@@ -90,10 +96,9 @@ class MediKioskGeminiEngine:
         for model in self.CANDIDATE_MODELS:
             url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
             try:
-                # Try using requests if available
                 try:
                     import requests
-                    resp = requests.post(url, json=payload, timeout=3)
+                    resp = requests.post(url, json=payload, timeout=2.0)
                     if resp.status_code == 200:
                         data = resp.json()
                         candidates = data.get("candidates", [])
@@ -101,27 +106,29 @@ class MediKioskGeminiEngine:
                             content_parts = candidates[0].get("content", {}).get("parts", [])
                             if content_parts:
                                 return content_parts[0].get("text", "")
+                    elif resp.status_code in (400, 401, 403, 404):
+                        self._key_invalid = True
+                        logger.warning(f"Gemini API returned status {resp.status_code}. Using deterministic clinical engine.")
+                        return None
                 except ImportError:
-                    pass
-
-                # Standard library urllib
-                req = urllib.request.Request(
-                    url,
-                    data=json_body,
-                    headers={"Content-Type": "application/json"},
-                    method="POST"
-                )
-                with urllib.request.urlopen(req, timeout=3) as response:
-                    if response.status == 200:
-                        data = json.loads(response.read().decode("utf-8"))
-                        candidates = data.get("candidates", [])
-                        if candidates:
-                            content_parts = candidates[0].get("content", {}).get("parts", [])
-                            if content_parts:
-                                return content_parts[0].get("text", "")
+                    req = urllib.request.Request(
+                        url,
+                        data=json_body,
+                        headers={"Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(req, timeout=2.0) as response:
+                        if response.status == 200:
+                            data = json.loads(response.read().decode("utf-8"))
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                content_parts = candidates[0].get("content", {}).get("parts", [])
+                                if content_parts:
+                                    return content_parts[0].get("text", "")
             except Exception as e:
-                logger.warning(f"Gemini API model {model} attempt failed: {e}")
-                continue
+                logger.warning(f"Gemini API attempt: {e}")
+                self._key_invalid = True
+                return None
 
         return None
 

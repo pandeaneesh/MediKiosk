@@ -6,8 +6,14 @@ SQL_SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "sql
 
 def get_db_connection():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        pass
     return conn
 
 def init_sqlite_db():
@@ -181,20 +187,24 @@ def init_sqlite_db():
 
 def execute_query(query: str, params: tuple = ()):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
 
 def execute_update(query: str, params: tuple = ()):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(query, params)
-    conn.commit()
-    affected = cursor.rowcount
-    conn.close()
-    return affected
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        conn.commit()
+        affected = cursor.rowcount
+        return affected
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     init_sqlite_db()

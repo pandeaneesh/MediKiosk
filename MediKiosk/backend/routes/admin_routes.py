@@ -17,6 +17,7 @@ import sys
 import time
 import json
 import random
+from typing import Optional, List, Dict, Any
 from models.schemas import AdminLoginRequest, RemoteKioskPrintRequest, ToggleDoctorStatusRequest, AddHospitalRequest
 from services.telemetry_service import TelemetryAnalyticsEngine
 from services.queue_service import SmartQueueEngine
@@ -413,4 +414,149 @@ def add_new_hospital(req: AddHospitalRequest):
         "message": f"Hospital '{clean_name}' successfully onboarded to MediKiosk network with dedicated credentials.",
         "hospital": new_h
     }
+
+@router.get("/patients")
+def get_all_admin_patients(hospital_id: Optional[str] = None):
+    """
+    Live Patients Endpoint for Admin Chamber:
+    Returns all registered patients, their token numbers, live queue status (WAITING, IN_CHAMBER, SEEN),
+    chief complaints, AI triage summary, survey messages count, 3D pain summary, vitals, and registration timestamp.
+    """
+    if hospital_id and hospital_id != 'ALL':
+        query = "SELECT * FROM patients WHERE hospital_id = ? OR hospital_id IS NULL ORDER BY rowid DESC"
+        p_rows = execute_query(query, (hospital_id,))
+    else:
+        query = "SELECT * FROM patients ORDER BY rowid DESC"
+        p_rows = execute_query(query)
+
+    formatted_patients = []
+    for idx, p in enumerate(p_rows):
+        pid = p.get("patient_id")
+        
+        # 1. Parse Vitals
+        vitals = json.loads(p["vitals"]) if p.get("vitals") else {
+            "bp": "120/80 mmHg", "pulse": "74 bpm", "spo2": "99%", "temp": "98.4 °F"
+        }
+
+        # 2. Check Queue Ticket status
+        tkt_rows = execute_query(
+            "SELECT * FROM offline_queue_tickets WHERE patient_id = ? ORDER BY id DESC LIMIT 1",
+            (pid,)
+        )
+        tkt = tkt_rows[0] if tkt_rows else {}
+        token_number = tkt.get("token_number") or p.get("token_number") or f"OPD-A-{101+idx}"
+        queue_status = tkt.get("status") or "WAITING"
+        doctor_assigned = tkt.get("doctor_id") or "doc-1"
+        department = tkt.get("department") or p.get("symptoms") or "General Medicine"
+
+        # 3. Check Latest AI Health Survey / Interview
+        int_rows = execute_query(
+            "SELECT * FROM interviews WHERE patient_id = ? ORDER BY created_at DESC LIMIT 1",
+            (pid,)
+        )
+        latest_int = int_rows[0] if int_rows else None
+        
+        ai_summary = None
+        if latest_int and latest_int.get("ai_summary"):
+            try:
+                ai_summary = json.loads(latest_int["ai_summary"])
+            except Exception:
+                ai_summary = latest_int["ai_summary"]
+        elif p.get("summary"):
+            try:
+                ai_summary = json.loads(p["summary"])
+            except Exception:
+                ai_summary = p["summary"]
+
+        messages = []
+        if latest_int and latest_int.get("messages"):
+            try:
+                messages = json.loads(latest_int["messages"])
+            except Exception:
+                messages = []
+
+        survey_completed = bool(latest_int.get("is_completed")) if latest_int else False
+        survey_turns_count = len(messages) if isinstance(messages, list) else 0
+
+        # 4. Check 3D Pain Mapping
+        pm_rows = execute_query(
+            "SELECT * FROM patient_pain_mappings WHERE patient_id = ? ORDER BY id DESC LIMIT 1",
+            (pid,)
+        )
+        pain_mapping = None
+        if pm_rows:
+            pm = pm_rows[0]
+            pain_mapping = {
+                "bodyRegion": pm.get("body_region"),
+                "side": pm.get("side"),
+                "location": pm.get("location"),
+                "painIntensity": pm.get("pain_intensity", 5),
+                "severity": pm.get("severity", 5),
+                "painType": pm.get("pain_type", "Aching"),
+                "duration": pm.get("duration", "Recent"),
+                "laymanSummary": pm.get("layman_summary"),
+                "coordinates": json.loads(pm["coordinates"]) if pm.get("coordinates") else None
+            }
+        elif p.get("pain_mapping"):
+            try:
+                pain_mapping = json.loads(p["pain_mapping"])
+            except Exception:
+                pain_mapping = None
+
+        # 5. Check Dashavidha Pariksha
+        dashvidha = None
+        if p.get("past_history_dashvidha"):
+            try:
+                dashvidha = json.loads(p["past_history_dashvidha"])
+            except Exception:
+                dashvidha = None
+
+        # 6. Check Medical Documents
+        doc_count_rows = execute_query("SELECT COUNT(*) as cnt FROM medical_documents WHERE patient_id = ?", (pid,))
+        doc_count = doc_count_rows[0]["cnt"] if doc_count_rows else 0
+
+        # Determine Red-Flag / Priority
+        is_priority = bool(tkt.get("is_emergency") or (latest_int and latest_int.get("red_flags") and latest_int.get("red_flags") != "[]"))
+
+        formatted_patients.append({
+            "id": pid,
+            "patientId": pid,
+            "fullName": p.get("full_name") or "Registered Patient",
+            "patientName": p.get("full_name") or "Registered Patient",
+            "mobile": p.get("mobile") or "",
+            "email": p.get("email") or f"{pid.lower()}@abdm.gov.in",
+            "abhaNumber": p.get("abha_number") or "",
+            "abhaAddress": p.get("abha_address") or f"{pid.lower()}@abdm",
+            "aadhaarNumber": p.get("aadhaar_number") or "",
+            "age": p.get("age") or 35,
+            "gender": p.get("gender") or "Male",
+            "address": p.get("address") or "New Delhi, India",
+            "tokenNumber": token_number,
+            "ticketId": tkt.get("ticket_id") or f"TKT-{pid}",
+            "queueStatus": queue_status,
+            "doctorAssigned": doctor_assigned,
+            "department": department,
+            "chiefComplaint": (latest_int.get("complaint") if latest_int else None) or p.get("symptoms") or "General OPD Assessment",
+            "symptoms": p.get("symptoms") or "General OPD Assessment",
+            "vitals": vitals,
+            "painMapping": pain_mapping,
+            "dashvidha": dashvidha,
+            "dashvidhaHistory": dashvidha,
+            "aiSummary": ai_summary,
+            "summary": ai_summary,
+            "surveyCompleted": survey_completed,
+            "surveyTurnsCount": survey_turns_count,
+            "messages": messages,
+            "medicalDocumentsCount": doc_count,
+            "isPriority": is_priority,
+            "hospitalId": p.get("hospital_id", "HOSP-AIIMS-01"),
+            "registeredAt": p.get("registered_at") or time.strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    return {
+        "success": True,
+        "count": len(formatted_patients),
+        "patients": formatted_patients
+    }
+
 

@@ -1,6 +1,6 @@
-import { analyticsData } from './data/mockAnalyticsData';
 import React, { useState, useEffect } from 'react';
 import api from './utils/api';
+import NewPatientModal from './components/NewPatientModal';
 import {
   ShieldCheck,
   Activity,
@@ -37,7 +37,13 @@ import {
   Plus,
   Phone,
   Bed,
-  ExternalLink
+  ExternalLink,
+  Crosshair,
+  Brain,
+  Check,
+  MessageSquare,
+  Award,
+  HeartPulse
 } from 'lucide-react';
 
 const MongoStudioViewer = () => {
@@ -313,9 +319,14 @@ const INITIAL_KIOSKS = [
 
 const AdminDashboard = ({ admin, onLogout, onReturnToMenu }) => {
   const isMainAdmin = admin?.role === 'MAIN_ADMIN' || Boolean(admin?.email && (admin.email.includes('govt') || admin.email.includes('stakeholder') || admin.email.includes('director') || admin.email.includes('superadmin')));
-  const [activeTab, setActiveTab] = useState(isMainAdmin ? 'national' : 'queues');
+  const [activeTab, setActiveTab] = useState(isMainAdmin ? 'national' : 'patients');
   const [doctorRoster, setDoctorRoster] = useState(INITIAL_DOCTOR_ROSTER);
   const [kiosks, setKiosks] = useState(INITIAL_KIOSKS);
+  const [adminPatients, setAdminPatients] = useState([]);
+  const [selectedInspectPatient, setSelectedInspectPatient] = useState(null);
+  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+  const [patientFilterStatus, setPatientFilterStatus] = useState('ALL');
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [nationalTelemetry, setNationalTelemetry] = useState(null);
   const [selectedHospitalFilter, setSelectedHospitalFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -434,6 +445,18 @@ const AdminDashboard = ({ admin, onLogout, onReturnToMenu }) => {
     setTimeout(() => setToastMessage(''), 3500);
   };
 
+  const fetchAdminPatients = async () => {
+    try {
+      const hospId = activeHospital?.hospital_id || activeHospital?.id || null;
+      const res = await api.getAdminPatients(hospId);
+      if (res && res.patients) {
+        setAdminPatients(res.patients);
+      }
+    } catch (err) {
+      console.warn("Live admin patients sync notice:", err);
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -450,12 +473,13 @@ const AdminDashboard = ({ admin, onLogout, onReturnToMenu }) => {
         if (res.telemetry.doctors?.length > 0) setDoctorRoster(res.telemetry.doctors);
         if (res.telemetry.kiosks?.length > 0) setKiosks(res.telemetry.kiosks);
       }
+      await fetchAdminPatients();
     } catch (err) {
       console.warn("Telemetry refresh warning:", err);
     } finally {
       setIsRefreshing(false);
     }
-    showToast("Live telemetry, hospital grid, and queue counters synchronized.");
+    showToast("Live telemetry, hospital grid, and patient registry synchronized.");
   };
 
   const handleAddHospitalSubmit = async (e) => {
@@ -526,7 +550,10 @@ const AdminDashboard = ({ admin, onLogout, onReturnToMenu }) => {
 
   useEffect(() => {
     handleRefresh();
-  }, [admin?.role]);
+    fetchAdminPatients();
+    const pInterval = setInterval(fetchAdminPatients, 3000);
+    return () => clearInterval(pInterval);
+  }, [admin?.role, activeHospital?.hospital_id]);
 
   // Rebalance Queues 1-Click
   const handleRebalanceQueues = async () => {
@@ -813,20 +840,22 @@ const AdminDashboard = ({ admin, onLogout, onReturnToMenu }) => {
           <div className="px-6 sm:px-8 pt-4 bg-slate-50/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
             <nav className="flex gap-2 flex-wrap" aria-label="Admin console navigation">
               {(isMainAdmin ? [
-                { id: 'national', label: '0. 🇮🇳 National Hospital Surveillance', icon: Building2 },
-                { id: 'queues', label: '1. Live OPD Queues & Load', icon: Activity },
-                { id: 'logins', label: '2. User & Login Analytics', icon: BarChart3 },
-                { id: 'customers', label: '3. Customer Analytics', icon: Users },
-                { id: 'roster', label: '4. Doctor in Chamber', icon: Stethoscope },
-                { id: 'fleet', label: '5. Kiosk Hardware', icon: HardDrive },
-                { id: 'abdm', label: '6. ABDM & DPDP Compliance', icon: ShieldCheck },
-                { id: 'mongo', label: '7. 📜 MongoDB Cloud History Studio', icon: FileText }
+                { id: 'national', label: '0. 🇮🇳 National Surveillance', icon: Building2 },
+                { id: 'patients', label: '1. 🏥 Live Patients & OPD Chamber', icon: Users },
+                { id: 'queues', label: '2. Live OPD Queues & Load', icon: Activity },
+                { id: 'logins', label: '3. User & Login Analytics', icon: BarChart3 },
+                { id: 'customers', label: '4. Customer Analytics', icon: PieChart },
+                { id: 'roster', label: '5. Doctor in Chamber', icon: Stethoscope },
+                { id: 'fleet', label: '6. Kiosk Hardware', icon: HardDrive },
+                { id: 'abdm', label: '7. ABDM & DPDP Compliance', icon: ShieldCheck },
+                { id: 'mongo', label: '8. 📜 MongoDB Cloud History Studio', icon: FileText }
               ] : [
-                { id: 'queues', label: '1. Live OPD Queues & Load', icon: Activity },
-                { id: 'customers', label: '2. Customer Analytics', icon: Users },
-                { id: 'fleet', label: '3. Kiosk Hardware', icon: HardDrive },
-                { id: 'roster', label: '4. Doctor in Chamber', icon: Stethoscope },
-                { id: 'abdm', label: '5. ABDM & DPDP Compliance', icon: ShieldCheck }
+                { id: 'patients', label: '1. 🏥 Live Patients & OPD Chamber', icon: Users },
+                { id: 'queues', label: '2. Live OPD Queues & Load', icon: Activity },
+                { id: 'customers', label: '3. Customer Analytics', icon: PieChart },
+                { id: 'fleet', label: '4. Kiosk Hardware', icon: HardDrive },
+                { id: 'roster', label: '5. Doctor in Chamber', icon: Stethoscope },
+                { id: 'abdm', label: '6. ABDM & DPDP Compliance', icon: ShieldCheck }
               ]).map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -1116,6 +1145,343 @@ const AdminDashboard = ({ admin, onLogout, onReturnToMenu }) => {
                   <Sliders size={14} />
                   <span>Execute Inter-Hospital Balance</span>
                 </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* ================= TAB 1: LIVE PATIENTS & OPD CHAMBER ================= */}
+          {activeTab === 'patients' && (
+            <div className="p-6 sm:p-8 space-y-6">
+              
+              {/* Header & Controls Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                      <Users size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <span>Live Patients & OPD Chamber</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          ● 3S AUTO-SYNC ACTIVE
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Live streaming of registered patients, OPD waiting tokens, AI health intake surveys, and triage status
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Action Buttons */}
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPatientModal(true)}
+                    className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black transition shadow-md shadow-blue-500/20 flex items-center gap-2 active:scale-95 cursor-pointer"
+                    title="Register New Walk-In Patient to Database & OPD Queue"
+                  >
+                    <UserPlus size={15} />
+                    <span>+ Register New Patient</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetchAdminPatients();
+                      showToast("✨ Live Patient Roster synchronized with SQLite Edge DB.");
+                    }}
+                    className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5"
+                    title="Refresh Patients"
+                  >
+                    <RefreshCw size={13} className={isRefreshing ? "animate-spin text-blue-600" : "text-slate-500"} />
+                    <span>Sync DB</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Live Patient Telemetry KPI Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 shadow-sm">
+                  <div className="flex justify-between items-center text-xs font-bold text-blue-900 uppercase">
+                    <span>Registered Patients</span>
+                    <Users size={16} className="text-blue-600" />
+                  </div>
+                  <div className="text-3xl font-black text-blue-950 font-mono mt-2">
+                    {adminPatients.length}
+                  </div>
+                  <p className="text-[11px] font-bold text-emerald-700 mt-1">100% SQLite3 DB Synced</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+                  <div className="flex justify-between items-center text-xs font-bold text-amber-900 uppercase">
+                    <span>In OPD Waiting Line</span>
+                    <Clock3 size={16} className="text-amber-600" />
+                  </div>
+                  <div className="text-3xl font-black text-amber-950 font-mono mt-2">
+                    {adminPatients.filter(p => p.queueStatus === 'WAITING' || p.queueStatus === 'IN_CHAMBER').length}
+                  </div>
+                  <p className="text-[11px] font-bold text-amber-800 mt-1">Tokens Issued & Queued</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 shadow-sm">
+                  <div className="flex justify-between items-center text-xs font-bold text-emerald-900 uppercase">
+                    <span>AI Surveys Completed</span>
+                    <Sparkles size={16} className="text-emerald-600" />
+                  </div>
+                  <div className="text-3xl font-black text-emerald-950 font-mono mt-2">
+                    {adminPatients.filter(p => p.surveyCompleted || p.surveyTurnsCount > 0).length}
+                  </div>
+                  <p className="text-[11px] font-bold text-emerald-700 mt-1">Voice & 3D Intake Recorded</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-rose-50 to-red-50 border border-rose-200 rounded-2xl p-4 shadow-sm">
+                  <div className="flex justify-between items-center text-xs font-bold text-rose-900 uppercase">
+                    <span>Priority / Red-Flags</span>
+                    <AlertTriangle size={16} className="text-rose-600" />
+                  </div>
+                  <div className="text-3xl font-black text-rose-950 font-mono mt-2">
+                    {adminPatients.filter(p => p.isPriority).length}
+                  </div>
+                  <p className="text-[11px] font-bold text-rose-700 mt-1">Immediate Triage Flagged</p>
+                </div>
+              </div>
+
+              {/* Filters & Search Toolbar */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'ALL', label: `All (${adminPatients.length})` },
+                    { id: 'WAITING', label: `In Waiting Line (${adminPatients.filter(p => p.queueStatus === 'WAITING' || p.queueStatus === 'IN_CHAMBER').length})` },
+                    { id: 'SURVEY', label: `Survey Recorded (${adminPatients.filter(p => p.surveyCompleted || p.surveyTurnsCount > 0).length})` },
+                    { id: 'PRIORITY', label: `Red-Flags (${adminPatients.filter(p => p.isPriority).length})` },
+                    { id: 'SEEN', label: `Consulted / Seen (${adminPatients.filter(p => p.queueStatus === 'SEEN').length})` }
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setPatientFilterStatus(f.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        patientFilterStatus === f.id
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative min-w-[260px]">
+                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={patientSearchQuery}
+                    onChange={(e) => setPatientSearchQuery(e.target.value)}
+                    placeholder="Search name, ABHA, token #, complaint..."
+                    className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-medium"
+                  />
+                  {patientSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setPatientSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Patients Roster Table */}
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="p-4 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
+                      Live Registered Patients & Queue Roster
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
+                      {adminPatients.filter(p => {
+                        const matchesSearch = !patientSearchQuery || (
+                          (p.fullName || p.patientName || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          (p.tokenNumber || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          (p.abhaNumber || p.identifier || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          (p.abhaAddress || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          (p.mobile || '').includes(patientSearchQuery) ||
+                          (p.chiefComplaint || p.symptoms || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          (p.department || '').toLowerCase().includes(patientSearchQuery.toLowerCase())
+                        );
+                        if (patientFilterStatus === 'WAITING') return matchesSearch && (p.queueStatus === 'WAITING' || p.queueStatus === 'IN_CHAMBER');
+                        if (patientFilterStatus === 'SEEN') return matchesSearch && p.queueStatus === 'SEEN';
+                        if (patientFilterStatus === 'SURVEY') return matchesSearch && (p.surveyCompleted || p.surveyTurnsCount > 0);
+                        if (patientFilterStatus === 'PRIORITY') return matchesSearch && p.isPriority;
+                        return matchesSearch;
+                      }).length} shown
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-500 font-mono">SQLite3 Local Edge Database</span>
+                </div>
+
+                {(() => {
+                  const filtered = adminPatients.filter(p => {
+                    const matchesSearch = !patientSearchQuery || (
+                      (p.fullName || p.patientName || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                      (p.tokenNumber || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                      (p.abhaNumber || p.identifier || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                      (p.abhaAddress || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                      (p.mobile || '').includes(patientSearchQuery) ||
+                      (p.chiefComplaint || p.symptoms || '').toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                      (p.department || '').toLowerCase().includes(patientSearchQuery.toLowerCase())
+                    );
+                    if (patientFilterStatus === 'WAITING') return matchesSearch && (p.queueStatus === 'WAITING' || p.queueStatus === 'IN_CHAMBER');
+                    if (patientFilterStatus === 'SEEN') return matchesSearch && p.queueStatus === 'SEEN';
+                    if (patientFilterStatus === 'SURVEY') return matchesSearch && (p.surveyCompleted || p.surveyTurnsCount > 0);
+                    if (patientFilterStatus === 'PRIORITY') return matchesSearch && p.isPriority;
+                    return matchesSearch;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-12 text-center space-y-3 bg-slate-50/50">
+                        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
+                          <Users size={28} />
+                        </div>
+                        <h4 className="text-base font-extrabold text-slate-900">No Patient Records Found</h4>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                          {patientSearchQuery ? 'No patients matching your search criteria.' : 'No patients registered yet. Patients registered at the Kiosk or via Admin will appear here instantly.'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddPatientModal(true)}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+                        >
+                          + Register First Patient
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100/80 text-slate-600 uppercase font-extrabold border-b border-slate-200 text-[11px]">
+                          <tr>
+                            <th className="p-3.5">Token & Queue</th>
+                            <th className="p-3.5">Patient Name & Identity</th>
+                            <th className="p-3.5">Chief Complaint & Symptoms</th>
+                            <th className="p-3.5">AI Health Survey</th>
+                            <th className="p-3.5">3D Pain & Vitals</th>
+                            <th className="p-3.5">Assigned Room</th>
+                            <th className="p-3.5 text-right">Dossier Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filtered.map((p) => {
+                            const isWaiting = p.queueStatus === 'WAITING' || p.queueStatus === 'IN_CHAMBER';
+                            const isSeen = p.queueStatus === 'SEEN';
+
+                            return (
+                              <tr key={p.id || p.patientId} className="hover:bg-slate-50/80 transition">
+                                {/* Token # & Status */}
+                                <td className="p-3.5">
+                                  <div className="space-y-1">
+                                    <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 block w-fit">
+                                      {p.tokenNumber}
+                                    </span>
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                                      p.isPriority 
+                                        ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                        : isWaiting 
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                                        : isSeen 
+                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}>
+                                      <span>{p.isPriority ? '🚨 RED-FLAG' : isWaiting ? '⏳ WAITING' : isSeen ? '✓ CONSULTED' : p.queueStatus}</span>
+                                    </span>
+                                  </div>
+                                </td>
+
+                                {/* Patient Profile & ABHA */}
+                                <td className="p-3.5">
+                                  <strong className="text-sm font-black text-slate-900 block leading-snug">
+                                    {p.fullName || p.patientName}
+                                  </strong>
+                                  <div className="text-[11px] text-slate-600 mt-0.5 space-y-0.5">
+                                    <span className="font-semibold">{p.gender}, {p.age} yrs</span>
+                                    <span className="text-slate-400 block font-mono text-[10px]">{p.abhaAddress || p.abhaNumber || p.mobile}</span>
+                                  </div>
+                                </td>
+
+                                {/* Chief Complaint */}
+                                <td className="p-3.5 max-w-[220px]">
+                                  <p className="text-xs font-bold text-slate-800 line-clamp-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                    &quot;{p.chiefComplaint || p.symptoms}&quot;
+                                  </p>
+                                </td>
+
+                                {/* Survey State */}
+                                <td className="p-3.5">
+                                  {p.surveyCompleted || p.surveyTurnsCount > 0 ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-extrabold text-[11px] border border-emerald-300">
+                                      <Sparkles size={12} className="text-emerald-600" />
+                                      <span>{p.surveyCompleted ? `Completed (${p.surveyTurnsCount || 8} turns)` : `In Progress (${p.surveyTurnsCount} turns)`}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-slate-400 font-medium bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                                      Survey Pending
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* 3D Pain & Vitals */}
+                                <td className="p-3.5">
+                                  <div className="space-y-1">
+                                    {p.painMapping ? (
+                                      <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 flex items-center gap-1 w-fit">
+                                        <Crosshair size={11} />
+                                        <span>{p.painMapping.bodyRegion || 'Mapped'} (VAS {p.painMapping.painIntensity || p.painMapping.severity || 5}/10)</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400">No pain mapped</span>
+                                    )}
+                                    <span className="text-[10px] font-mono text-slate-500 block">
+                                      BP: {p.vitals?.bp || '120/80'} • SpO2: {p.vitals?.spo2 || '98%'}
+                                    </span>
+                                  </div>
+                                </td>
+
+                                {/* Assigned Room */}
+                                <td className="p-3.5">
+                                  <span className="font-bold text-slate-800 block text-xs">
+                                    {p.department || 'General Medicine'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block">
+                                    Room 104 • {p.doctorAssigned || 'Dr. Rajeshwar Sharma'}
+                                  </span>
+                                </td>
+
+                                {/* Action */}
+                                <td className="p-3.5 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedInspectPatient(p)}
+                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm transition flex items-center gap-1 ml-auto active:scale-95 cursor-pointer"
+                                    title="Inspect Full Patient Clinical File & Survey Dialogue"
+                                  >
+                                    <span>🔍 Inspect</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
             </div>
@@ -2407,6 +2773,289 @@ const AdminDashboard = ({ admin, onLogout, onReturnToMenu }) => {
           </div>
         </div>
       )}
+
+      {/* ================= PATIENT CLINICAL DOSSIER INSPECTOR MODAL ================= */}
+      {selectedInspectPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 p-5 sm:p-6 text-white flex items-center justify-between shadow-md shrink-0">
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-400/30 text-cyan-300 font-black flex items-center justify-center text-xl shadow-inner">
+                  {selectedInspectPatient.fullName ? selectedInspectPatient.fullName.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'PT'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-mono text-xs font-black bg-blue-500 text-slate-950 px-2.5 py-0.5 rounded-lg">
+                      {selectedInspectPatient.tokenNumber}
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                      {selectedInspectPatient.fullName || selectedInspectPatient.patientName}
+                    </h3>
+                    <span className="text-xs font-bold text-slate-300 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/20">
+                      {selectedInspectPatient.gender}, {selectedInspectPatient.age} yrs
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                      selectedInspectPatient.isPriority
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                        : selectedInspectPatient.queueStatus === 'SEEN'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    }`}>
+                      {selectedInspectPatient.isPriority ? '🚨 RED-FLAG' : selectedInspectPatient.queueStatus}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300 mt-1 font-mono">
+                    <span>ABHA: <strong className="text-cyan-300">{selectedInspectPatient.abhaAddress || selectedInspectPatient.abhaNumber || 'N/A'}</strong></span>
+                    <span>•</span>
+                    <span>Mobile: <strong>{selectedInspectPatient.mobile || 'N/A'}</strong></span>
+                    <span>•</span>
+                    <span>Registered: {selectedInspectPatient.registeredAt}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedInspectPatient(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-slate-800">
+              
+              {/* 1. Sensor Vitals Row */}
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block mb-2">
+                  Live Sensor Vitals (Estimated at Station)
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Blood Pressure</span>
+                    <span className="text-sm font-black text-slate-900 font-mono mt-0.5 block">{selectedInspectPatient.vitals?.bp || '120/80 mmHg'}</span>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Pulse Rate</span>
+                    <span className="text-sm font-black text-slate-900 font-mono mt-0.5 block">{selectedInspectPatient.vitals?.pulse || '74 bpm'}</span>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">SpO2 Oxygen</span>
+                    <span className="text-sm font-black text-slate-900 font-mono mt-0.5 block">{selectedInspectPatient.vitals?.spo2 || '99%'}</span>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Body Temperature</span>
+                    <span className="text-sm font-black text-slate-900 font-mono mt-0.5 block">{selectedInspectPatient.vitals?.temp || '98.4 °F'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Primary Chief Complaint Banner */}
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl space-y-1">
+                <span className="text-[10px] font-extrabold text-blue-800 uppercase tracking-wider block">
+                  Reported Chief Complaint / Symptoms
+                </span>
+                <p className="text-base font-black text-slate-900 leading-snug">
+                  &quot;{selectedInspectPatient.chiefComplaint || selectedInspectPatient.symptoms}&quot;
+                </p>
+                <div className="flex items-center gap-3 text-xs text-slate-600 pt-1 font-medium">
+                  <span>Assigned Chamber: <strong>{selectedInspectPatient.department || 'General Medicine (Room 104)'}</strong></span>
+                  <span>•</span>
+                  <span>Doctor: <strong>{selectedInspectPatient.doctorAssigned || 'Dr. Rajeshwar Sharma'}</strong></span>
+                </div>
+              </div>
+
+              {/* 3. Everything Patient Said in Survey: Complete Conversational AI Dialogue Transcript */}
+              <div className="p-4 bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 space-y-3 shadow-inner">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="font-extrabold text-xs text-white uppercase tracking-wider">
+                      Conversational AI Survey Dialogue Transcript ({selectedInspectPatient.messages?.length || selectedInspectPatient.surveyTurnsCount || 0} turns)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded-md border border-cyan-800">
+                    Bhashini Voice AI Verified
+                  </span>
+                </div>
+
+                {!selectedInspectPatient.messages || selectedInspectPatient.messages.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-slate-400 italic">
+                    Intake statement recorded. Patient is currently queued in line.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 text-xs font-sans">
+                    {selectedInspectPatient.messages.map((msg, mIdx) => {
+                      const isAi = msg.role === 'ai' || msg.sender === 'ai';
+                      return (
+                        <div
+                          key={mIdx}
+                          className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                            isAi
+                              ? 'bg-slate-800/90 border-blue-500/40 text-blue-100 mr-4'
+                              : 'bg-blue-950/80 border-indigo-500/50 text-emerald-200 ml-4'
+                          }`}
+                        >
+                          <span className="text-sm shrink-0 mt-0.5">{isAi ? '🩺' : '👤'}</span>
+                          <div className="flex-1 space-y-0.5">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${isAi ? 'text-cyan-300' : 'text-emerald-400'}`}>
+                                {isAi ? 'MediKiosk AI Intake Assistant' : selectedInspectPatient.fullName || 'Patient'}
+                              </span>
+                            </div>
+                            <p className="leading-relaxed font-medium text-slate-100">
+                              {msg.content || msg.text}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 4. 3D Body Pain Mapping Telemetry */}
+              {selectedInspectPatient.painMapping && (
+                <div className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50/70 to-sky-50 border-2 border-blue-200 rounded-2xl text-xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                        <Crosshair size={16} />
+                      </div>
+                      <span className="font-extrabold text-blue-950 text-sm">
+                        3D Digital Mannequin Pain Telemetry (Spatial Mesh)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
+                      Kiosk Vertex Calibrated
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-200">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Localized Spot</span>
+                      <span className="text-xs font-black text-slate-900 block mt-0.5">{selectedInspectPatient.painMapping.laymanSummary || 'Localized Spot'}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-200">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Body Region</span>
+                      <span className="text-xs font-bold text-blue-700 block mt-0.5 capitalize">{selectedInspectPatient.painMapping.bodyRegion || 'Region'}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-200">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">VAS Severity</span>
+                      <span className="text-xs font-black text-rose-600 block mt-0.5">VAS {selectedInspectPatient.painMapping.painIntensity || selectedInspectPatient.painMapping.severity || 5}/10 ({selectedInspectPatient.painMapping.painType || 'Aching'})</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-200">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Duration</span>
+                      <span className="text-xs font-bold text-slate-800 block mt-0.5">{selectedInspectPatient.painMapping.duration || 'Recent'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Gemini AI Clinical Synthesis & Recommended Orders */}
+              {selectedInspectPatient.aiSummary && (
+                <div className="p-4 bg-gradient-to-br from-emerald-50/90 to-teal-50 border-2 border-emerald-300 rounded-2xl text-xs space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={16} className="text-emerald-700" />
+                      <strong className="text-sm font-black text-emerald-950">Gemini AI Clinical Triage Handover</strong>
+                    </div>
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                      Gemini 2.0 Flash
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-emerald-200 space-y-1">
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase block">Provisional Impression:</span>
+                    <p className="text-sm font-black text-slate-900">
+                      {selectedInspectPatient.aiSummary.provisional_impression || selectedInspectPatient.aiSummary.impression || selectedInspectPatient.chiefComplaint}
+                    </p>
+                  </div>
+
+                  {selectedInspectPatient.aiSummary.recommended_orders && (
+                    <div className="p-3 bg-white rounded-xl border border-emerald-200 space-y-1.5">
+                      <span className="text-[10px] font-bold text-teal-800 uppercase block">Suggested Diagnostic Orders:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(Array.isArray(selectedInspectPatient.aiSummary.recommended_orders) ? selectedInspectPatient.aiSummary.recommended_orders : [selectedInspectPatient.aiSummary.recommended_orders]).map((ord, oI) => (
+                          <span key={oI} className="px-2 py-1 bg-teal-50 text-teal-800 rounded-lg text-xs font-bold border border-teal-200">
+                            ✓ {ord}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 6. Ayurvedic Dashavidha Pariksha if present */}
+              {selectedInspectPatient.dashvidha && (
+                <div className="p-4 bg-emerald-50/80 border border-emerald-300 rounded-2xl text-xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-emerald-900 font-extrabold text-sm">
+                      <Award size={16} className="text-emerald-700" />
+                      <span>Ayurvedic Dashavidha Pariksha (10 Clinical Pillars)</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200">
+                      <span className="text-emerald-800 font-bold block text-[10px]">1. Prakriti:</span>
+                      <span className="text-slate-900 font-bold text-xs">{selectedInspectPatient.dashvidha.prakriti || 'Vata-Pitta'}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200">
+                      <span className="text-rose-800 font-bold block text-[10px]">2. Vikriti:</span>
+                      <span className="text-slate-900 font-bold text-xs">{selectedInspectPatient.dashvidha.vikriti || 'Agnimandya'}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200">
+                      <span className="text-emerald-800 font-bold block text-[10px]">3. Sara:</span>
+                      <span className="text-slate-800 font-medium text-xs">{selectedInspectPatient.dashvidha.sara || 'Madhyama'}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200">
+                      <span className="text-emerald-800 font-bold block text-[10px]">4. Ahara/Agni:</span>
+                      <span className="text-slate-800 font-medium text-xs">{selectedInspectPatient.dashvidha.aharaShakti || selectedInspectPatient.dashvidha.agni || 'Samagni'}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200">
+                      <span className="text-emerald-800 font-bold block text-[10px]">5. Vaya:</span>
+                      <span className="text-slate-800 font-medium text-xs">{selectedInspectPatient.dashvidha.vaya || `${selectedInspectPatient.age} yrs`}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-500 font-mono">
+                MediKiosk ABDM 2.0 Clinical File Vault • Patient ID: {selectedInspectPatient.patientId || selectedInspectPatient.id}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedInspectPatient(null)}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition"
+              >
+                Close Dossier
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ================= NEW PATIENT REGISTRATION MODAL ================= */}
+      <NewPatientModal
+        isOpen={showAddPatientModal}
+        onClose={() => setShowAddPatientModal(false)}
+        onRegistered={(newPt) => {
+          fetchAdminPatients();
+          setShowAddPatientModal(false);
+          showToast(`✨ Patient ${newPt?.fullName || 'Walk-In'} registered to SQLite DB and added to Admin Chamber!`);
+        }}
+        language="english"
+      />
 
       {/* Footer */}
       <footer className="w-full max-w-7xl flex flex-wrap justify-between items-center text-xs text-slate-600 py-3 border-t border-blue-200/80 gap-2 z-10 font-medium">

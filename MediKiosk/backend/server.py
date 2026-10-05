@@ -54,7 +54,8 @@ from routes.admin_routes import (
     get_hospital_scoped_data,
     get_main_country_telemetry,
     get_all_hospitals,
-    add_new_hospital
+    add_new_hospital,
+    get_all_admin_patients
 )
 from models.schemas import (
     DoctorLoginRequest,
@@ -154,6 +155,11 @@ class MediKioskNativePythonHandler(http.server.BaseHTTPRequestHandler):
             if path == "/api/v1/admin/hospitals":
                 from routes.admin_routes import get_all_hospitals
                 return self._send_json(get_all_hospitals())
+
+            if path == "/api/v1/admin/patients" or path.startswith("/api/v1/admin/patients"):
+                parsed_qs = urllib.parse.parse_qs(url.query)
+                hosp_id = parsed_qs.get('hospital_id', [None])[0]
+                return self._send_json(get_all_admin_patients(hosp_id))
 
             if path.startswith("/api/v1/admin/hospital/"):
                 hospital_id = path.split("/")[-1]
